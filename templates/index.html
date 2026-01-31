@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Life Evolution Tracker</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      #graph {
+        width: 100%;
+        height: 600px;
+      }
+      .controls {
+        margin: 20px 0;
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+      .domain-control {
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 8px;
+      }
+      button {
+        margin: 0 5px;
+        padding: 8px 16px;
+        font-size: 16px;
+        cursor: pointer;
+        border: none;
+        border-radius: 4px;
+      }
+      .btn-plus {
+        background-color: #4caf50;
+        color: white;
+      }
+      .btn-minus {
+        background-color: #f44336;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Life Evolution Tracker</h1>
+
+    <div id="graph"></div>
+
+    <div class="controls">
+      <!-- Sport control (index 0) -->
+      <div class="domain-control">
+        <h3>Sport</h3>
+        <button class="btn-minus" onclick="updateScore(0, -1)">-1</button>
+        <button class="btn-plus" onclick="updateScore(0, +1)">+1</button>
+      </div>
+
+      <div class="domain-control">
+        <h3>intellect</h3>
+        <button class="btn-minus" onclick="updateScore(1, -1)">-1</button>
+        <button class="btn-plus" onclick="updateScore(1, +1)">+1</button>
+      </div>
+
+      <div class="domain-control">
+        <h3>spirit</h3>
+        <button class="btn-minus" onclick="updateScore(2, -1)">-1</button>
+        <button class="btn-plus" onclick="updateScore(2, +1)">+1</button>
+      </div>
+
+      <div class="domain-control">
+        <h3>will-power</h3>
+        <button class="btn-minus" onclick="updateScore(3, -1)">-1</button>
+        <button class="btn-plus" onclick="updateScore(3, +1)">+1</button>
+      </div>
+
+      <div class="domain-control">
+        <h3>detox</h3>
+        <button class="btn-minus" onclick="updateScore(4, -1)">-1</button>
+        <button class="btn-plus" onclick="updateScore(4, +1)">+1</button>
+      </div>
+
+      <!-- You can add the other 4 domains here following the same pattern -->
+    </div>
+
+    <script>
+      // Function to create/update the radar chart
+      function updateGraph(data) {
+        var plotData = [
+          {
+            type: "scatterpolar",
+            r: data.r,
+            theta: data.theta,
+            fill: "toself",
+            name: "Your Progress",
+            marker: {
+              color: "rgb(106, 168, 79)",
+              size: 8,
+            },
+            line: {
+              color: "rgb(106, 168, 79)",
+              width: 2,
+            },
+          },
+        ];
+
+        var layout = {
+          polar: {
+            radialaxis: {
+              visible: true,
+              range: [0, 110],
+            },
+          },
+          showlegend: false,
+        };
+
+        // Create or update the graph with animation
+        Plotly.react("graph", plotData, layout);
+      }
+
+      // Function called when you click a +1 or -1 button
+      function updateScore(domainIndex, change) {
+        // Send request to Flask backend
+        fetch("/update-score", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            index: domainIndex,
+            change: change,
+          }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            // Update the graph with new data
+            updateGraph(data);
+          });
+      }
+
+      // Load initial graph when page loads
+      fetch("/get-data")
+        .then((response) => response.json())
+        .then((data) => updateGraph(data));
+    </script>
+  </body>
+</html>
