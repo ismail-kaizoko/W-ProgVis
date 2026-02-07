@@ -2,114 +2,27 @@
 <html>
   <head>
     <title>Life Evolution Tracker</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-      /* Overlay */
-      .modal {
-        display: none; /* hidden initially */
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-
-        z-index: 9999; /* force it to top layer TO WIN OVER PLOTLY GRAPH*/
-
-        background: rgba(0, 0, 0, 0.6);
-
-        justify-content: center;
-        align-items: center;
-      }
-
-      /* White box */
-      .modal-content {
-        background: white;
-        padding: 30px;
-        border-radius: 12px;
-        width: 400px;
-        max-height: 80vh;
-        overflow-y: auto;
-      }
-
-      /* Domain rows */
-      .modal-domain {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-      }
-      body {
-        font-family: Arial, sans-serif;
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 20px;
-      }
-      #graph {
-        width: 100%;
-        height: 600px;
-      }
-
-      /* .controls {
-        margin: 20px 0;
-        display: flex;
-        gap: 20px;
-        flex-wrap: wrap;
-
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 20px;
-      } */
-
-      .controls {
-        display: flex;
-        justify-content: center;
-        flex-direction: column;
-        gap: 10px;
-        margin-top: 5px;
-      }
-
-      .domain-control {
-        border: 1px solid #ddd;
-        padding: 15px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-
-        min-width: 120px;
-      }
-
-      button {
-        margin: 0 5px;
-        padding: 8px 16px;
-        font-size: 16px;
-        cursor: pointer;
-        border: none;
-        border-radius: 4px;
-      }
-      .btn-plus {
-        background-color: #4caf50;
-        color: white;
-      }
-      .btn-minus {
-        background-color: #f44336;
-        color: white;
-      }
-    </style>
   </head>
-
-  <div id="modal" class="modal">
-    <div class="modal-content">
-      <h2>Update Domains</h2>
-      <div id="modal-controls"></div>
-      <button onclick="closeModal()">Done</button>
-    </div>
-  </div>
-
+  
   <body>
+    <!-- Modal Overlay -->
+    <div id="modal" class="modal">
+      <div class="modal-content">
+        <h2>Update Domains</h2>
+        <div id="modal-controls"></div>
+        <button onclick="closeModal()">Done</button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
     <h1>Life Evolution Tracker</h1>
 
+    <!-- Setup Section -->
     <div id="setup">
       <h2>Define your life domains</h2>
       <input
@@ -121,145 +34,12 @@
       <button class="btn-plus" onclick="initApp()">Start</button>
     </div>
 
-    <div id="graph"></div>
-
-    <button id="openModalBtn" class="btn-plus">Update</button>
-
+    <!-- App Section -->
     <div id="app" style="display: none">
       <div id="graph"></div>
+      <button id="openModalBtn" class="btn-plus">Update</button>
     </div>
 
-    <script>
-      // Function to create/update the radar chart
-
-      let domains = [];
-
-      function initApp() {
-        const input = document.getElementById("domainInput").value;
-
-        domains = input
-          .split(",")
-          .map((d) => d.trim())
-          .filter((d) => d.length > 0);
-
-        if (domains.length < 3) {
-          alert("Please enter at least 3 domains.");
-          return;
-        }
-
-        document.getElementById("setup").style.display = "none";
-        document.getElementById("app").style.display = "block";
-
-        initServerData();
-      }
-
-      function initServerData() {
-        fetch("/init", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ domains: domains }),
-        })
-          .then((res) => res.json())
-          .then((data) => updateGraph(data));
-      }
-
-      function updateGraph(data) {
-        var plotData = [
-          {
-            type: "scatterpolar",
-            r: data.r,
-            theta: data.theta,
-            fill: "toself",
-            name: "Your Progress",
-            marker: {
-              color: "rgb(106, 168, 79)",
-              size: 8,
-            },
-            line: {
-              color: "rgb(106, 168, 79)",
-              width: 2,
-            },
-          },
-        ];
-
-        var layout = {
-          polar: {
-            radialaxis: {
-              visible: true,
-              range: [0, 110],
-            },
-          },
-          showlegend: false,
-        };
-
-        // Create or update the graph with animation
-        Plotly.react("graph", plotData, layout);
-      }
-
-      // Function called when you click a +1 or -1 button
-      function updateScore(domainIndex, change) {
-        // Send request to Flask backend
-        fetch("/update-score", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            index: domainIndex,
-            change: change,
-          }),
-        })
-          .then((response) => response.json())
-          .then((data) => {
-            // Update the graph with new data
-            updateGraph(data);
-          });
-      }
-
-      function openModal() {
-        document.getElementById("modal").style.display = "flex";
-        generateModalControls();
-      }
-
-      function closeModal() {
-        document.getElementById("modal").style.display = "none";
-      }
-
-      document
-        .getElementById("openModalBtn")
-        .addEventListener("click", openModal);
-
-      function generateModalControls() {
-        const container = document.getElementById("modal-controls");
-        container.innerHTML = "";
-
-        domains.forEach((domain, index) => {
-          const div = document.createElement("div");
-          div.className = "modal-domain";
-
-          div.innerHTML = `
-            <span>${domain}</span>
-            <div>
-              <button onclick="updateScore(${index}, -1)">−</button>
-              <button onclick="updateScore(${index}, 1)">+</button>
-            </div>
-          `;
-
-          container.appendChild(div);
-        });
-      }
-
-      window.onclick = function (event) {
-        const modal = document.getElementById("modal");
-        if (event.target === modal) {
-          closeModal();
-        }
-      };
-
-      // // Load initial graph when page loads
-      // fetch("/get-data")
-      //   .then((response) => response.json())
-      //   .then((data) => updateGraph(data));
-    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
   </body>
 </html>
