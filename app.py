@@ -3,14 +3,15 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from functools import wraps
-
+import numpy as np
+import json
 
 
 app = Flask(__name__)
 
-# ====== APP STATE (simple version) ======
-domains = None
-scores = None
+# # ====== APP STATE (simple version) ======
+# domains = None
+# scores = None
 
 
 # Configuration
@@ -44,24 +45,59 @@ class User(db.Model):
         return f'<User {self.username}>'
 
 
-class DataEntry(db.Model):
-    """Data table - now linked to users"""
+class DomainData(db.Model):
+    """Stores domain names and scores for radar chart - ONE ROW PER USER"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
+    
+    # Store as JSON strings
+    domains = db.Column(db.Text, nullable=True)  # JSON array: ["Sport", "Intellect", ...]
+    scores = db.Column(db.Text, nullable=True)   # JSON array: [0, 5, 10, ...]
+    
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User', backref='domain_data')
+    
+    def get_domains(self):
+        """Parse JSON string to list"""
+        return json.loads(self.domains) if self.domains else None
+    
+    def get_scores(self):
+        """Parse JSON string to list"""
+        return json.loads(self.scores) if self.scores else None
+    
+    def set_domains(self, domain_list):
+        """Convert list to JSON string"""
+        self.domains = json.dumps(domain_list)
+    
+    def set_scores(self, score_list):
+        """Convert list to JSON string"""
+        self.scores = json.dumps(score_list)
+
+
+
+class HourEntry(db.Model):
+    """Hours tracking for bar chart - MULTIPLE ROWS PER USER"""
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    value1 = db.Column(db.Float, nullable=False)
-    value2 = db.Column(db.Float, nullable=False)
+    
+    work_hours = db.Column(db.Float, nullable=False)
+    study_hours = db.Column(db.Float, nullable=False)
+    
+    date = db.Column(db.Date, default=datetime.utcnow)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Relationship to User
-    user = db.relationship('User', backref='entries')
+    user = db.relationship('User', backref='hour_entries')
     
     def to_dict(self):
         return {
             'id': self.id,
-            'value1': self.value1,
-            'value2': self.value2,
+            'work_hours': self.work_hours,
+            'study_hours': self.study_hours,
+            'date': self.date.strftime('%Y-%m-%d'),
             'timestamp': self.timestamp.strftime('%Y-%m-%d %H:%M:%S')
         }
+
 
 
 # Create tables
@@ -185,63 +221,135 @@ def get_graph_data():
         "r": [100 * sigmoid(s) for s in scores]
     }
 
+def get_or_create_domain_data(user_id):
+    """Get user's domain data, create if doesn't exist"""
+    domain_data = DomainData.query.filter_by(user_id=user_id).first()
+    if not domain_data:
+        domain_data = DomainData(user_id=user_id)
+        db.session.add(domain_data)
+        db.session.commit()
+    return domain_data
+
 
 
 # ============================================
-# PROTECTED ROUTES (require login)
+# RADAR CHART ROUTES (Domain Scores)
 # ============================================
 
-@app.route("/")
+@app.route('/')
 @login_required
 def index():
-    """Main app - only accessible if logged in"""
+    """Main app page"""
     return render_template('index.html', username=session.get('username'))
 
 
-@app.route("/status")
+@app.route('/status')
+@login_required
 def status():
-    """Tell frontend whether domains are already initialized"""
-    return jsonify({"initialized": domains is not None})
+    """Check if user has initialized domains"""
+    user_id = session['user_id']
+    domain_data = get_or_create_domain_data(user_id)
+    
+    initialized = domain_data.get_domains() is not None
+    
+    return jsonify({'initialized': initialized})
 
 
-@app.route("/init", methods=["POST"])
+@app.route('/init', methods=['POST'])
+@login_required
 def init():
-    global domains, scores
-
+    """Initialize user's domains"""
+    user_id = session['user_id']
+    domain_data = get_or_create_domain_data(user_id)
+    
     data = request.get_json()
-    domains = data["domains"]
-    scores = [0.0] * len(domains)
-
-    return jsonify(get_graph_data())
-
-
-# @app.route("/get-data")
-# def get_data():
-#     if domains is None:
-#         return jsonify({"error": "Not initialized"}), 400
-#     return jsonify(get_graph_data())
+    domains = data['domains']
+    
+    # Save domains and initialize scores to 0
+    domain_data.set_domains(domains)
+    domain_data.set_scores([0.0] * len(domains))
+    
+    db.session.commit()
+    
+    return jsonify({
+        'theta': domains,
+        'r': [100 * sigmoid(0) for _ in domains]
+    })
 
 
 @app.route('/get-data')
 @login_required
 def get_data():
-    """Get only the current user's data"""
+    """Get radar chart data"""
     user_id = session['user_id']
-    entries = DataEntry.query.filter_by(user_id=user_id).all()
+    domain_data = get_or_create_domain_data(user_id)
+    
+    domains = domain_data.get_domains()
+    scores = domain_data.get_scores()
+    
+    if domains is None:
+        return jsonify({'error': 'Not initialized'}), 400
+    
+    return jsonify({
+        'theta': domains,
+        'r': [100 * sigmoid(s) for s in scores]
+    })
+
+
+@app.route('/update-score', methods=['POST'])
+@login_required
+def update_score():
+    """Update a domain score"""
+    user_id = session['user_id']
+    domain_data = get_or_create_domain_data(user_id)
+    
+    data = request.get_json()
+    index = data['index']
+    change = data['change']
+    
+    # Get current scores
+    scores = domain_data.get_scores()
+    domains = domain_data.get_domains()
+    
+    # Update the score
+    scores[index] += change
+    
+    # Save back to database
+    domain_data.set_scores(scores)
+    db.session.commit()
+    
+    return jsonify({
+        'theta': domains,
+        'r': [100 * sigmoid(s) for s in scores]
+    })
+
+
+
+# ============================================
+# HOURS TRACKING ROUTES (Bar Chart)
+# ============================================
+
+@app.route('/get-hours')
+@login_required
+def get_hours():
+    """Get all hour entries for bar chart"""
+    user_id = session['user_id']
+    entries = HourEntry.query.filter_by(user_id=user_id).order_by(HourEntry.date).all()
+    
     return jsonify([entry.to_dict() for entry in entries])
 
 
-@app.route('/add-entry', methods=['POST'])
+@app.route('/add-hours', methods=['POST'])
 @login_required
-def add_entry():
-    """Add entry for current user"""
-    data = request.get_json()
+def add_hours():
+    """Add a new hours entry"""
     user_id = session['user_id']
+    data = request.get_json()
     
-    new_entry = DataEntry(
+    new_entry = HourEntry(
         user_id=user_id,
-        value1=data['value1'],
-        value2=data['value2']
+        work_hours=data['work_hours'],
+        study_hours=data['study_hours']
     )
     
     db.session.add(new_entry)
@@ -250,18 +358,34 @@ def add_entry():
     return jsonify(new_entry.to_dict())
 
 
-
-@app.route("/update-score", methods=["POST"])
-def update_score():
-    global scores
-
+@app.route('/update-hours/<int:entry_id>', methods=['PUT'])
+@login_required
+def update_hours(entry_id):
+    """Update an hours entry"""
+    user_id = session['user_id']
+    entry = HourEntry.query.filter_by(id=entry_id, user_id=user_id).first_or_404()
+    
     data = request.get_json()
-    index = data["index"]
-    change = data["change"]
+    entry.work_hours = data['work_hours']
+    entry.study_hours = data['study_hours']
+    
+    db.session.commit()
+    
+    return jsonify(entry.to_dict())
 
-    scores[index] += change
 
-    return jsonify(get_graph_data())
+@app.route('/delete-hours/<int:entry_id>', methods=['DELETE'])
+@login_required
+def delete_hours(entry_id):
+    """Delete an hours entry"""
+    user_id = session['user_id']
+    entry = HourEntry.query.filter_by(id=entry_id, user_id=user_id).first_or_404()
+    
+    db.session.delete(entry)
+    db.session.commit()
+    
+    return jsonify({'message': 'Entry deleted', 'id': entry_id})
+
 
 
 if __name__ == "__main__":

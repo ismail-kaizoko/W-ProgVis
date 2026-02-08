@@ -2,20 +2,18 @@
 <html>
   <head>
     <title>Life Evolution Tracker</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='styles.css') }}"
-    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   </head>
-
+  
   <body>
-    <div style="text-align: right; padding: 10px">
-      Welcome, <strong>{{ username }}</strong>!
-      <a href="/logout" style="margin-left: 10px; color: #667eea">Logout</a>
+    <!-- Logout Header -->
+    <div style="text-align: right; padding: 10px; background: #f5f5f5;">
+      Welcome, <strong>{{ username }}</strong>! 
+      <a href="/logout" style="margin-left: 10px; color: #667eea; text-decoration: none;">Logout</a>
     </div>
 
-    <!-- Modal Overlay -->
+    <!-- Modal for Domain Updates -->
     <div id="modal" class="modal">
       <div class="modal-content">
         <h2>Update Domains</h2>
@@ -27,7 +25,7 @@
     <!-- Main Content -->
     <h1>Life Evolution Tracker</h1>
 
-    <!-- Setup Section -->
+    <!-- Setup Section for Radar Chart -->
     <div id="setup">
       <h2>Define your life domains</h2>
       <input
@@ -39,10 +37,53 @@
       <button class="btn-plus" onclick="initApp()">Start</button>
     </div>
 
-    <!-- App Section -->
+    <!-- App Section - Radar Chart -->
     <div id="app" style="display: none">
+      <h2>Domain Progress (Radar Chart)</h2>
       <div id="graph"></div>
-      <button id="openModalBtn" class="btn-plus">Update</button>
+      <button id="openModalBtn" class="btn-plus">Update Domains</button>
+    </div>
+
+    <!-- Hours Tracking Section - Bar Chart -->
+    <div id="hours-section" style="display: none; margin-top: 40px;">
+      <h2>Hours Tracking (Bar Chart)</h2>
+      
+      <!-- Add Hours Form -->
+      <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h3>Add Today's Hours</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div>
+            <label>Work Hours:</label>
+            <input type="number" id="work-hours-input" placeholder="e.g., 8" step="0.5" min="0" style="width: 100%; padding: 8px;">
+          </div>
+          <div>
+            <label>Study Hours:</label>
+            <input type="number" id="study-hours-input" placeholder="e.g., 3" step="0.5" min="0" style="width: 100%; padding: 8px;">
+          </div>
+        </div>
+        <button class="btn-plus" onclick="addHoursEntry()" style="margin-top: 10px;">Add Entry</button>
+      </div>
+
+      <!-- Bar Chart -->
+      <div id="hours-graph" style="height: 400px;"></div>
+
+      <!-- Hours Table -->
+      <div style="margin-top: 20px;">
+        <h3>All Entries</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Work Hours</th>
+              <th>Study Hours</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="hours-table-body">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
