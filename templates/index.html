@@ -8,8 +8,13 @@
     />
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   </head>
-  
+
   <body>
+    <div style="text-align: right; padding: 10px">
+      Welcome, <strong>{{ username }}</strong>!
+      <a href="/logout" style="margin-left: 10px; color: #667eea">Logout</a>
+    </div>
+
     <!-- Modal Overlay -->
     <div id="modal" class="modal">
       <div class="modal-content">
