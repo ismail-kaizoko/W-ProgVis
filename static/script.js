@@ -113,8 +113,6 @@ window.onclick = (e) => {
   }
 };
 
-
-
 // ====== HOURS TRACKING FUNCTIONS (Bar Chart) ======
 
 async function loadHoursData() {
@@ -125,38 +123,81 @@ async function loadHoursData() {
   // updateHoursTable(data);
 }
 
-function updateHoursGraph(data) {
-  if (data.length === 0) {
-    document.getElementById("hours-graph").innerHTML =
+// function updateHoursGraph(data) {
+//   if (data.length === 0) {
+//     document.getElementById("hours-graph").innerHTML =
+//       "<p style='text-align: center; color: #666;'>No data yet. Add your first entry above!</p>";
+//     return;
+//   }
+
+//   const dates = data.map((entry) => entry.date);
+//   const workHours = data.map((entry) => entry.work_hours);
+//   const studyHours = data.map((entry) => entry.study_hours);
+
+//   const trace1 = {
+//     x: dates,
+//     y: workHours,
+//     name: "Work Hours",
+//     type: "bar",
+//     marker: { color: "#ffa500" },
+//     // barcornerradius: 15,
+//   };
+
+//   // const trace2 = {
+//   //   x: dates,
+//   //   y: studyHours,
+//   //   name: 'Study Hours',
+//   //   type: 'bar',
+//   //   marker: { color: '#2196F3' }
+//   // };
+
+//   const layout = {
+//     barmode: "group",
+//     xaxis: { title: "Date" },
+//     yaxis: { title: "Hours" },
+//     margin: { t: 20 },
+//   };
+
+//   Plotly.newPlot("hours-graph", trace1, { responsive: true });
+// }
+
+function updateHoursGraph(data, N = 30) {
+  const graphDiv = document.getElementById("hours-graph");
+
+  if (!data || data.length === 0) {
+    graphDiv.innerHTML =
       "<p style='text-align: center; color: #666;'>No data yet. Add your first entry above!</p>";
     return;
   }
 
-  const dates = data.map((entry) => entry.date);
-  const workHours = data.map((entry) => entry.work_hours);
-  const studyHours = data.map((entry) => entry.study_hours);
+  // Create fixed X axis: day 1 ... day N
+  const days = Array.from({ length: N }, (_, i) => `day ${i + 1}`);
+
+  // Extract hours from dataset
+  const workHoursRaw = data.map(entry => entry.work_hours);
+
+  // Fill up to N with 0 so bars don't stretch
+  const workHours = Array.from({ length: N }, (_, i) => workHoursRaw[i] ?? 0);
 
   const trace1 = {
-    x: dates,
+    x: days,
     y: workHours,
     name: "Work Hours",
     type: "bar",
-    marker: { color: "##ffa500" },
+    marker: { color: "orange" }
   };
-
-  // const trace2 = {
-  //   x: dates,
-  //   y: studyHours,
-  //   name: 'Study Hours',
-  //   type: 'bar',
-  //   marker: { color: '#2196F3' }
-  // };
 
   const layout = {
     barmode: "group",
-    xaxis: { title: "Date" },
+    xaxis: {
+      title: "Days",
+      type: "category"
+    },
     yaxis: { title: "Hours" },
     margin: { t: 20 },
+
+    bargroupgap: 0.5,
+    barcornerradius: 50,
   };
 
   Plotly.newPlot("hours-graph", [trace1], layout, { responsive: true });
@@ -194,7 +235,7 @@ async function addHoursEntry() {
   if (
     isNaN(workHours) ||
     // isNaN(studyHours) ||
-    workHours < 0 
+    workHours < 0
     // studyHours < 0
   ) {
     alert("Please enter valid hours (positive numbers)");
@@ -205,8 +246,7 @@ async function addHoursEntry() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     // body: JSON.stringify({ work_hours: workHours, study_hours: studyHours }),
-    body: JSON.stringify({ work_hours: workHours}),
-
+    body: JSON.stringify({ work_hours: workHours }),
   });
 
   if (res.ok) {
