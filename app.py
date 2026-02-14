@@ -82,7 +82,7 @@ class HourEntry(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     
     work_hours = db.Column(db.Float, nullable=False)
-    study_hours = db.Column(db.Float, nullable=False)
+    # study_hours = db.Column(db.Float, nullable=False)
     
     date = db.Column(db.Date, default=datetime.utcnow)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -93,7 +93,7 @@ class HourEntry(db.Model):
         return {
             'id': self.id,
             'work_hours': self.work_hours,
-            'study_hours': self.study_hours,
+            # 'study_hours': self.study_hours,
             'date': self.date.strftime('%Y-%m-%d'),
             'timestamp': self.timestamp.strftime('%Y-%m-%d %H:%M:%S')
         }
@@ -349,7 +349,7 @@ def add_hours():
     new_entry = HourEntry(
         user_id=user_id,
         work_hours=data['work_hours'],
-        study_hours=data['study_hours']
+        # study_hours=data['study_hours']
     )
     
     db.session.add(new_entry)
@@ -367,24 +367,24 @@ def update_hours(entry_id):
     
     data = request.get_json()
     entry.work_hours = data['work_hours']
-    entry.study_hours = data['study_hours']
+    # entry.study_hours = data['study_hours']
     
     db.session.commit()
     
     return jsonify(entry.to_dict())
 
 
-@app.route('/delete-hours/<int:entry_id>', methods=['DELETE'])
-@login_required
-def delete_hours(entry_id):
-    """Delete an hours entry"""
-    user_id = session['user_id']
-    entry = HourEntry.query.filter_by(id=entry_id, user_id=user_id).first_or_404()
+# @app.route('/delete-hours/<int:entry_id>', methods=['DELETE'])
+# @login_required
+# def delete_hours(entry_id):
+#     """Delete an hours entry"""
+#     user_id = session['user_id']
+#     entry = HourEntry.query.filter_by(id=entry_id, user_id=user_id).first_or_404()
     
-    db.session.delete(entry)
-    db.session.commit()
+#     db.session.delete(entry)
+#     db.session.commit()
     
-    return jsonify({'message': 'Entry deleted', 'id': entry_id})
+#     return jsonify({'message': 'Entry deleted', 'id': entry_id})
 
 
 
