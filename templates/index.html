@@ -10,19 +10,23 @@
       <div>
         Welcome, <strong>{{ username }}</strong>
       </div>
-      <a href="/logout" class="logout-link">Logout</a>
+      <div class="topbar-actions">
+        <button class="btn-plus topbar-add-button" type="button" onclick="openAddWidgetModal()">
+          + Add Graphic
+        </button>
+        <a href="/logout" class="logout-link">Logout</a>
+      </div>
     </header>
 
     <main class="page-shell">
       <section class="hero">
         <h1>Life Evolution Tracker</h1>
-        <p>Start with an empty dashboard, then add the graphics you want one by one.</p>
+        <p>Start with an empty dashboard, then add the graphics you want from the top-right button.</p>
       </section>
 
       <section id="empty-state" class="empty-state" hidden>
         <h2>Your dashboard is empty</h2>
-        <p>Use the plus button to add your first graphic.</p>
-        <button class="btn-plus big-add-button" onclick="openAddWidgetModal()">+ Add Graphic</button>
+        <p>Use the top-right Add Graphic button to create your first chart.</p>
       </section>
 
       <section id="dashboard" class="dashboard-row"></section>

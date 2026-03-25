@@ -1,5 +1,4 @@
 let dashboardWidgets = [];
-let pendingInsertAfterId = null;
 
 const dashboardEl = document.getElementById("dashboard");
 const emptyStateEl = document.getElementById("empty-state");
@@ -36,6 +35,7 @@ function renderDashboard() {
     card.dataset.widgetId = widget.id;
 
     const graphId = `widget-graph-${widget.id}`;
+    const graphClass = widget.type === "radar" ? "widget-graph widget-graph-radar" : "widget-graph";
 
     card.innerHTML = `
       <div class="widget-header">
@@ -43,32 +43,35 @@ function renderDashboard() {
           <p class="widget-type">${widget.type}</p>
           <h2>${widget.title}</h2>
         </div>
+        <button class="btn-danger widget-remove-button" type="button" onclick="removeWidget(${widget.id})">
+          Remove Widget
+        </button>
       </div>
-      <div id="${graphId}" class="widget-graph"></div>
-      <div class="widget-actions" id="widget-actions-${widget.id}"></div>
-      <button class="add-under-button" type="button" onclick="openAddWidgetModal(${widget.id})">+ Add Graphic Here</button>
+      <div class="widget-body">
+        <div id="${graphId}" class="${graphClass}"></div>
+        <div class="widget-actions" id="widget-actions-${widget.id}"></div>
+      </div>
     `;
 
     dashboardEl.appendChild(card);
 
     if (widget.type === "radar") {
       renderRadarWidget(graphId, widget);
-      renderRadarActions(widget.id, widget.config.domains);
+      renderRadarActions(widget.id, widget.config.domains, widget.config.today_deltas);
     } else if (widget.type === "bar") {
       renderBarWidget(graphId, widget);
-      renderBarActions(widget.id, widget.config);
+      renderBarActions(widget.id, widget.config, widget.today_entry);
     }
   });
 
-  if (dashboardWidgets.length > 0) {
-    const trailingAddCard = document.createElement("article");
-    trailingAddCard.className = "add-card";
-    trailingAddCard.innerHTML = `
-      <p>Add another graphic</p>
-      <button class="btn-plus big-add-button" type="button" onclick="openAddWidgetModal()">+</button>
-    `;
-    dashboardEl.appendChild(trailingAddCard);
-  }
+  const addButtonWrap = document.createElement("div");
+  addButtonWrap.className = "dashboard-add-wrap";
+  addButtonWrap.innerHTML = `
+    <button class="btn-plus dashboard-add-button" type="button" onclick="openAddWidgetModal()">
+      + Add Graphic
+    </button>
+  `;
+  dashboardEl.appendChild(addButtonWrap);
 }
 
 function renderRadarWidget(graphId, widget) {
@@ -98,36 +101,38 @@ function renderRadarWidget(graphId, widget) {
   });
 }
 
-function renderRadarActions(widgetId, domains) {
+function renderRadarActions(widgetId, domains, todayDeltas = []) {
   const actionsEl = document.getElementById(`widget-actions-${widgetId}`);
   actionsEl.innerHTML = `
+    <div class="daily-note">For each domain, today's net change can only end at -1, 0, or +1.</div>
     <div class="domain-controls">
       ${domains
-        .map(
-          (domain, index) => `
+        .map((domain, index) => {
+          const delta = todayDeltas[index] ?? 0;
+          const deltaLabel = delta > 0 ? `+${delta}` : `${delta}`;
+          return `
             <div class="domain-control">
-              <span>${domain}</span>
+              <div>
+                <span>${domain}</span>
+                <p class="domain-hint">Today's net change: ${deltaLabel}</p>
+              </div>
               <div class="score-buttons">
                 <button class="btn-minus" type="button" onclick="updateRadarScore(${widgetId}, ${index}, -1)">-1</button>
                 <button class="btn-plus" type="button" onclick="updateRadarScore(${widgetId}, ${index}, 1)">+1</button>
               </div>
             </div>
-          `,
-        )
+          `;
+        })
         .join("")}
     </div>
   `;
 }
 
-function renderBarWidget(graphId, widget, maxDays = 30) {
-  const entries = widget.entries || [];
-  const values = entries.map((entry) => entry.value);
-  const labels = Array.from({ length: maxDays }, (_, index) => `day ${index + 1}`);
-  const paddedValues = Array.from({ length: maxDays }, (_, index) => values[index] ?? 0);
-
+function renderBarWidget(graphId, widget) {
+  const series = widget.series || { labels: [], values: [] };
   const trace = {
-    x: labels,
-    y: paddedValues,
+    x: series.labels,
+    y: series.values,
     name: widget.config.metric_name,
     type: "bar",
     marker: { color: "#f59e0b" },
@@ -142,7 +147,7 @@ function renderBarWidget(graphId, widget, maxDays = 30) {
     [trace],
     {
       margin: { t: 20, r: 20, b: 50, l: 50 },
-      xaxis: { title: "Days", type: "category" },
+      xaxis: { title: "Last 30 days", type: "category" },
       yaxis: { title: yAxisTitle },
       bargap: 0.35,
     },
@@ -153,16 +158,19 @@ function renderBarWidget(graphId, widget, maxDays = 30) {
   );
 }
 
-function renderBarActions(widgetId, config) {
+function renderBarActions(widgetId, config, todayEntry) {
   const actionsEl = document.getElementById(`widget-actions-${widgetId}`);
   const unitLabel = config.unit ? ` (${config.unit})` : "";
+  const buttonLabel = todayEntry ? "Update Today" : "Add Today";
+  const inputValue = todayEntry ? todayEntry.value : "";
 
   actionsEl.innerHTML = `
+    <div class="daily-note">You can only create or update today's bar. Past days lock after midnight.</div>
     <form class="bar-entry-form" onsubmit="submitBarEntry(event, ${widgetId})">
-      <label for="bar-input-${widgetId}">Add ${config.metric_name}${unitLabel}</label>
+      <label for="bar-input-${widgetId}">Today's ${config.metric_name}${unitLabel}</label>
       <div class="bar-entry-row">
-        <input id="bar-input-${widgetId}" type="number" min="0" step="0.5" placeholder="Enter a number" />
-        <button class="btn-plus" type="submit">Add Entry</button>
+        <input id="bar-input-${widgetId}" type="number" min="0" step="0.5" placeholder="Enter today's value" value="${inputValue}" />
+        <button class="btn-plus" type="submit">${buttonLabel}</button>
       </div>
     </form>
   `;
@@ -186,8 +194,10 @@ async function updateRadarScore(widgetId, index, change) {
       r: data.r,
     };
     widget.config.scores = data.scores;
+    widget.config.today_deltas = data.today_deltas;
 
     renderRadarWidget(`widget-graph-${widgetId}`, widget);
+    renderRadarActions(widget.id, widget.config.domains, widget.config.today_deltas);
   } catch (error) {
     alert(error.message);
   }
@@ -204,28 +214,51 @@ async function submitBarEntry(event, widgetId) {
     return;
   }
 
+  const widget = dashboardWidgets.find((item) => item.id === widgetId);
+  if (!widget) {
+    return;
+  }
+
+  const method = widget.today_entry ? "PUT" : "POST";
+
   try {
-    const data = await fetchJson(`/widgets/${widgetId}/bar/entries`, {
-      method: "POST",
+    const data = await fetchJson(`/widgets/${widgetId}/bar/entry`, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value }),
     });
 
-    const widget = dashboardWidgets.find((item) => item.id === widgetId);
-    if (!widget) {
-      return;
-    }
-
-    widget.entries = data.entries;
+    Object.assign(widget, data.widget);
     renderBarWidget(`widget-graph-${widgetId}`, widget);
-    input.value = "";
+    renderBarActions(widget.id, widget.config, widget.today_entry);
   } catch (error) {
     alert(error.message);
   }
 }
 
-function openAddWidgetModal(insertAfterId = null) {
-  pendingInsertAfterId = insertAfterId;
+async function removeWidget(widgetId) {
+  const widget = dashboardWidgets.find((item) => item.id === widgetId);
+  if (!widget) {
+    return;
+  }
+
+  const confirmed = window.confirm(`Are you sure you want to remove "${widget.title}"? This will delete its saved data.`);
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await fetchJson(`/widgets/${widgetId}`, {
+      method: "DELETE",
+    });
+    dashboardWidgets = dashboardWidgets.filter((item) => item.id !== widgetId);
+    renderDashboard();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function openAddWidgetModal() {
   widgetModalEl.style.display = "flex";
   widgetModalTitleEl.textContent = "Add Graphic";
   widgetFormErrorEl.hidden = true;
@@ -238,7 +271,6 @@ function closeWidgetModal() {
   widgetFormEl.dataset.step = "";
   widgetFormEl.dataset.widgetType = "";
   widgetFormContentEl.innerHTML = "";
-  pendingInsertAfterId = null;
 }
 
 function renderWidgetTypeStep() {
@@ -310,7 +342,6 @@ widgetFormEl.addEventListener("submit", async (event) => {
   const widgetType = widgetFormEl.dataset.widgetType;
   const payload = {
     type: widgetType,
-    insert_after_id: pendingInsertAfterId,
     title: document.getElementById("widget-title")?.value.trim() || "",
   };
 

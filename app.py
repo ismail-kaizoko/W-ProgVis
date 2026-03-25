@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from functools import wraps
 import json
 
@@ -78,6 +78,24 @@ class RadarWidgetData(db.Model):
         self.scores = json.dumps(score_list)
 
 
+class RadarDailyAdjustment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    widget_id = db.Column(db.Integer, db.ForeignKey("dashboard_widget.id"), nullable=False)
+    domain_index = db.Column(db.Integer, nullable=False)
+    entry_date = db.Column(db.Date, nullable=False, default=date.today)
+    delta = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    widget = db.relationship(
+        "DashboardWidget",
+        backref=db.backref("radar_daily_adjustments", cascade="all, delete-orphan"),
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("widget_id", "domain_index", "entry_date", name="uq_radar_daily_adjustment"),
+    )
+
+
 class BarWidgetData(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     widget_id = db.Column(
@@ -103,12 +121,16 @@ class BarEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     widget_id = db.Column(db.Integer, db.ForeignKey("dashboard_widget.id"), nullable=False)
     value = db.Column(db.Float, nullable=False)
-    date = db.Column(db.Date, default=lambda: datetime.utcnow().date())
+    date = db.Column(db.Date, default=date.today)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     widget = db.relationship(
         "DashboardWidget",
         backref=db.backref("bar_entries", cascade="all, delete-orphan"),
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("widget_id", "date", name="uq_bar_entry_widget_date"),
     )
 
     def to_dict(self):
@@ -134,6 +156,10 @@ def login_required(f):
     return decorated_function
 
 
+def current_day():
+    return datetime.now().date()
+
+
 def sigmoid(x):
     return 1 / (1 + np.exp(-0.1 * x))
 
@@ -145,14 +171,42 @@ def normalize_domains(raw_domains):
     return domains
 
 
+def build_bar_series(entries, days=30):
+    today = current_day()
+    value_map = {entry.date: entry.value for entry in entries}
+    start_day = today - timedelta(days=days - 1)
+
+    labels = []
+    values = []
+    for offset in range(days):
+        point_date = start_day + timedelta(days=offset)
+        labels.append(point_date.strftime("%m-%d"))
+        values.append(value_map.get(point_date, 0))
+
+    return {"labels": labels, "values": values}
+
+
+def get_today_radar_adjustments(widget, domain_count):
+    today = current_day()
+    adjustments = (
+        RadarDailyAdjustment.query.filter_by(widget_id=widget.id, entry_date=today)
+        .order_by(RadarDailyAdjustment.domain_index)
+        .all()
+    )
+    delta_map = {item.domain_index: item.delta for item in adjustments}
+    return [delta_map.get(index, 0) for index in range(domain_count)]
+
+
 def serialize_radar_widget(widget):
     domains = widget.radar_data.get_domains()
     scores = widget.radar_data.get_scores()
+    daily_deltas = get_today_radar_adjustments(widget, len(domains))
     return {
         **widget.to_dict(),
         "config": {
             "domains": domains,
             "scores": scores,
+            "today_deltas": daily_deltas,
         },
         "plot": {
             "theta": domains,
@@ -162,11 +216,14 @@ def serialize_radar_widget(widget):
 
 
 def serialize_bar_widget(widget):
-    entries = [entry.to_dict() for entry in sorted(widget.bar_entries, key=lambda item: (item.date, item.id))]
+    entries = sorted(widget.bar_entries, key=lambda item: item.date)
+    today_entry = next((entry for entry in entries if entry.date == current_day()), None)
     return {
         **widget.to_dict(),
         "config": widget.bar_data.to_dict(),
-        "entries": entries,
+        "entries": [entry.to_dict() for entry in entries],
+        "today_entry": today_entry.to_dict() if today_entry else None,
+        "series": build_bar_series(entries),
     }
 
 
@@ -251,28 +308,9 @@ def create_widget():
     data = request.get_json() or {}
     widget_type = data.get("type")
     title = (data.get("title") or "").strip()
-    insert_after_id = data.get("insert_after_id")
     user_id = session["user_id"]
 
-    widgets = (
-        DashboardWidget.query.filter_by(user_id=user_id)
-        .order_by(DashboardWidget.position, DashboardWidget.created_at)
-        .all()
-    )
-
-    position = len(widgets)
-    if insert_after_id is not None:
-        previous_widget = DashboardWidget.query.filter_by(id=insert_after_id, user_id=user_id).first()
-        if not previous_widget:
-            return jsonify({"error": "Reference widget not found"}), 404
-        position = previous_widget.position + 1
-        widgets_to_shift = (
-            DashboardWidget.query.filter(
-                DashboardWidget.user_id == user_id, DashboardWidget.position >= position
-            ).all()
-        )
-        for widget in widgets_to_shift:
-            widget.position += 1
+    position = DashboardWidget.query.filter_by(user_id=user_id).count()
 
     if widget_type == "radar":
         try:
@@ -323,6 +361,30 @@ def create_widget():
     return jsonify({"widget": serialize_widget(widget)}), 201
 
 
+@app.route("/widgets/<int:widget_id>", methods=["DELETE"])
+@login_required
+def delete_widget(widget_id):
+    widget = DashboardWidget.query.filter_by(id=widget_id, user_id=session["user_id"]).first_or_404()
+    deleted_position = widget.position
+    user_id = widget.user_id
+
+    db.session.delete(widget)
+
+    widgets_to_shift = (
+        DashboardWidget.query.filter(
+            DashboardWidget.user_id == user_id,
+            DashboardWidget.position > deleted_position,
+        )
+        .order_by(DashboardWidget.position)
+        .all()
+    )
+    for item in widgets_to_shift:
+        item.position -= 1
+
+    db.session.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/widgets/<int:widget_id>/radar/update-score", methods=["POST"])
 @login_required
 def update_radar_score(widget_id):
@@ -341,8 +403,36 @@ def update_radar_score(widget_id):
     if change not in (-1, 1):
         return jsonify({"error": "Invalid score change"}), 400
 
+    today = current_day()
+    adjustment = RadarDailyAdjustment.query.filter_by(
+        widget_id=widget.id,
+        domain_index=index,
+        entry_date=today,
+    ).first()
+
+    if not adjustment:
+        adjustment = RadarDailyAdjustment(
+            widget_id=widget.id,
+            domain_index=index,
+            entry_date=today,
+            delta=0,
+        )
+        db.session.add(adjustment)
+
+    new_delta = adjustment.delta + change
+    if new_delta < -1 or new_delta > 1:
+        return jsonify({"error": "For each domain, today's net change must stay between -1 and +1."}), 400
+
+    adjustment.delta = new_delta
     scores[index] += change
     widget.radar_data.set_scores(scores)
+
+    if adjustment.delta == 0:
+        if adjustment in db.session.new:
+            db.session.expunge(adjustment)
+        else:
+            db.session.delete(adjustment)
+
     db.session.commit()
 
     return jsonify(
@@ -350,13 +440,14 @@ def update_radar_score(widget_id):
             "theta": domains,
             "r": [100 * sigmoid(score) for score in scores],
             "scores": scores,
+            "today_deltas": get_today_radar_adjustments(widget, len(domains)),
         }
     )
 
 
-@app.route("/widgets/<int:widget_id>/bar/entries", methods=["POST"])
+@app.route("/widgets/<int:widget_id>/bar/entry", methods=["POST"])
 @login_required
-def add_bar_entry(widget_id):
+def create_bar_entry(widget_id):
     widget = DashboardWidget.query.filter_by(
         id=widget_id, user_id=session["user_id"], widget_type="bar"
     ).first_or_404()
@@ -370,11 +461,58 @@ def add_bar_entry(widget_id):
     if value < 0:
         return jsonify({"error": "Please enter a positive number."}), 400
 
-    db.session.add(BarEntry(widget_id=widget.id, value=value))
-    db.session.commit()
+    today = current_day()
+    existing_entry = BarEntry.query.filter_by(widget_id=widget.id, date=today).first()
+    if existing_entry:
+        return jsonify({"error": "Today's bar already exists. Update or delete it instead."}), 400
 
-    entries = BarEntry.query.filter_by(widget_id=widget.id).order_by(BarEntry.date, BarEntry.id).all()
-    return jsonify({"entries": [entry.to_dict() for entry in entries]})
+    db.session.add(BarEntry(widget_id=widget.id, value=value, date=today))
+    db.session.commit()
+    return jsonify({"widget": serialize_bar_widget(widget)})
+
+
+@app.route("/widgets/<int:widget_id>/bar/entry", methods=["PUT"])
+@login_required
+def update_bar_entry(widget_id):
+    widget = DashboardWidget.query.filter_by(
+        id=widget_id, user_id=session["user_id"], widget_type="bar"
+    ).first_or_404()
+
+    data = request.get_json() or {}
+    try:
+        value = float(data.get("value"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Please enter a valid number."}), 400
+
+    if value < 0:
+        return jsonify({"error": "Please enter a positive number."}), 400
+
+    today = current_day()
+    existing_entry = BarEntry.query.filter_by(widget_id=widget.id, date=today).first()
+    if not existing_entry:
+        return jsonify({"error": "No bar has been entered for today yet."}), 404
+
+    existing_entry.value = value
+    existing_entry.timestamp = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"widget": serialize_bar_widget(widget)})
+
+
+@app.route("/widgets/<int:widget_id>/bar/entry", methods=["DELETE"])
+@login_required
+def delete_bar_entry(widget_id):
+    widget = DashboardWidget.query.filter_by(
+        id=widget_id, user_id=session["user_id"], widget_type="bar"
+    ).first_or_404()
+
+    today = current_day()
+    existing_entry = BarEntry.query.filter_by(widget_id=widget.id, date=today).first()
+    if not existing_entry:
+        return jsonify({"error": "No bar has been entered for today yet."}), 404
+
+    db.session.delete(existing_entry)
+    db.session.commit()
+    return jsonify({"widget": serialize_bar_widget(widget)})
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@
   --green: #2f7d4b;
   --green-dark: #225c37;
   --red: #d64545;
+  --red-dark: #b91c1c;
   --shadow: 0 18px 40px rgba(51, 65, 85, 0.12);
 }
 
@@ -38,6 +39,16 @@ textarea {
   border-bottom: 1px solid rgba(31, 41, 55, 0.08);
   background: rgba(255, 253, 247, 0.78);
   backdrop-filter: blur(10px);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-add-button {
+  font-weight: 700;
 }
 
 .logout-link {
@@ -74,15 +85,12 @@ textarea {
 
 .dashboard-row {
   display: flex;
+  flex-direction: column;
   gap: 24px;
-  align-items: flex-start;
-  overflow-x: auto;
   padding: 28px 0 12px;
 }
 
-.widget-card,
-.add-card {
-  flex: 0 0 min(420px, 85vw);
+.widget-card {
   background: var(--panel);
   border: 1px solid rgba(217, 211, 195, 0.95);
   border-radius: 24px;
@@ -95,6 +103,10 @@ textarea {
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
+}
+
+.widget-remove-button {
+  white-space: nowrap;
 }
 
 .widget-header h2 {
@@ -114,11 +126,41 @@ textarea {
 .widget-graph {
   width: 100%;
   min-height: 320px;
-  margin-top: 12px;
+}
+
+.widget-graph-radar {
+  min-height: 380px;
 }
 
 .widget-actions {
-  margin-top: 16px;
+  width: min(320px, 100%);
+}
+
+.widget-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 20px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.dashboard-add-wrap {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.dashboard-add-button {
+  min-width: 220px;
+}
+
+.daily-note {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f3efe2;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .domain-controls {
@@ -134,6 +176,12 @@ textarea {
   padding: 12px 14px;
   border-radius: 16px;
   background: #f3efe2;
+}
+
+.domain-hint {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .score-buttons {
@@ -199,33 +247,14 @@ button:hover {
   color: white;
 }
 
+.btn-danger {
+  background: var(--red-dark);
+  color: white;
+}
+
 .btn-secondary {
   background: #e7e2d5;
   color: var(--text);
-}
-
-.big-add-button {
-  min-width: 64px;
-  min-height: 64px;
-  font-size: 1.35rem;
-  font-weight: 700;
-}
-
-.add-card {
-  display: grid;
-  place-items: center;
-  min-height: 240px;
-  text-align: center;
-  color: var(--muted);
-}
-
-.add-under-button {
-  width: 100%;
-  margin-top: 18px;
-  padding: 14px;
-  background: #ece6d8;
-  color: var(--text);
-  font-weight: 700;
 }
 
 .modal {
@@ -312,15 +341,24 @@ button:hover {
 
   .topbar {
     padding: 16px;
+    align-items: flex-start;
   }
 
-  .widget-card,
-  .add-card {
-    flex-basis: 92vw;
+  .topbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .widget-card {
+    width: 100%;
   }
 
   .bar-entry-row {
     flex-direction: column;
+  }
+
+  .widget-body {
+    grid-template-columns: 1fr;
   }
 
   .modal-actions {
