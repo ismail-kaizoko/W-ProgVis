@@ -1,60 +1,85 @@
-// ====== RADAR CHART FUNCTIONS ======
+let dashboardWidgets = [];
 
-async function checkStatus() {
-  const res = await fetch("/status");
-  const data = await res.json();
+const dashboardEl = document.getElementById("dashboard");
+const emptyStateEl = document.getElementById("empty-state");
+const widgetModalEl = document.getElementById("widget-modal");
+const widgetFormEl = document.getElementById("widget-form");
+const widgetFormContentEl = document.getElementById("widget-form-content");
+const widgetFormErrorEl = document.getElementById("widget-form-error");
+const widgetModalTitleEl = document.getElementById("widget-modal-title");
 
-  if (data.initialized) {
-    document.getElementById("setup").style.display = "none";
-    document.getElementById("app").style.display = "block";
-    document.getElementById("hours-section").style.display = "block";
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json();
 
-    loadGraph();
-    loadHoursData();
-  } else {
-    document.getElementById("setup").style.display = "block";
-    document.getElementById("app").style.display = "none";
-    document.getElementById("hours-section").style.display = "none";
+  if (!response.ok) {
+    throw new Error(data.error || data.message || "Request failed");
   }
+
+  return data;
 }
 
-async function initApp() {
-  const input = document.getElementById("domainInput").value;
-  const domains = input.split(",").map((d) => d.trim());
+async function loadDashboard() {
+  const data = await fetchJson("/dashboard-data");
+  dashboardWidgets = data.widgets || [];
+  renderDashboard();
+}
 
-  if (domains.length === 0 || domains[0] === "") {
-    alert("Please enter at least one domain!");
-    return;
-  }
+function renderDashboard() {
+  dashboardEl.innerHTML = "";
+  emptyStateEl.hidden = dashboardWidgets.length !== 0;
 
-  const res = await fetch("/init", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ domains }),
+  dashboardWidgets.forEach((widget) => {
+    const card = document.createElement("article");
+    card.className = "widget-card";
+    card.dataset.widgetId = widget.id;
+
+    const graphId = `widget-graph-${widget.id}`;
+    const graphClass = widget.type === "radar" ? "widget-graph widget-graph-radar" : "widget-graph";
+
+    card.innerHTML = `
+      <div class="widget-header">
+        <div>
+          <p class="widget-type">${widget.type}</p>
+          <h2>${widget.title}</h2>
+        </div>
+        <button class="btn-danger widget-remove-button" type="button" onclick="removeWidget(${widget.id})">
+          Remove Widget
+        </button>
+      </div>
+      <div class="widget-body">
+        <div id="${graphId}" class="${graphClass}"></div>
+        <div class="widget-actions" id="widget-actions-${widget.id}"></div>
+      </div>
+    `;
+
+    dashboardEl.appendChild(card);
+
+    if (widget.type === "radar") {
+      renderRadarWidget(graphId, widget);
+      renderRadarActions(widget.id, widget.config.domains, widget.config.today_deltas);
+    } else if (widget.type === "bar") {
+      renderBarWidget(graphId, widget);
+      renderBarActions(widget.id, widget.config, widget.today_entry);
+    }
   });
 
-  const data = await res.json();
-
-  document.getElementById("setup").style.display = "none";
-  document.getElementById("app").style.display = "block";
-  document.getElementById("hours-section").style.display = "block";
-
-  updateGraph(data);
-  loadHoursData();
+  const addButtonWrap = document.createElement("div");
+  addButtonWrap.className = "dashboard-add-wrap";
+  addButtonWrap.innerHTML = `
+    <button class="btn-plus dashboard-add-button" type="button" onclick="openAddWidgetModal()">
+      + Add Graphic
+    </button>
+  `;
+  dashboardEl.appendChild(addButtonWrap);
 }
 
-async function loadGraph() {
-  const res = await fetch("/get-data");
-  const data = await res.json();
-  updateGraph(data);
-}
-
-function updateGraph(data) {
+function renderRadarWidget(graphId, widget) {
   const plotData = [
     {
       type: "scatterpolar",
-      r: data.r,
-      theta: data.theta,
+      r: widget.plot.r,
+      theta: widget.plot.theta,
       fill: "toself",
       marker: { color: "rgb(106, 168, 79)", size: 10 },
       line: { color: "rgb(106, 168, 79)", width: 3 },
@@ -63,208 +88,293 @@ function updateGraph(data) {
   ];
 
   const layout = {
+    margin: { t: 20, r: 30, b: 20, l: 30 },
     polar: {
       radialaxis: { visible: true, range: [0, 100] },
     },
     showlegend: false,
   };
 
-  Plotly.react("graph", plotData, layout, { responsive: true });
+  Plotly.react(graphId, plotData, layout, {
+    responsive: true,
+    displayModeBar: false,
+  });
+}
 
-  // Populate modal controls
-  const controlsDiv = document.getElementById("modal-controls");
-  controlsDiv.innerHTML = "";
+function renderRadarActions(widgetId, domains, todayDeltas = []) {
+  const actionsEl = document.getElementById(`widget-actions-${widgetId}`);
+  actionsEl.innerHTML = `
+    <div class="daily-note">For each domain, today's net change can only end at -1, 0, or +1.</div>
+    <div class="domain-controls">
+      ${domains
+        .map((domain, index) => {
+          const delta = todayDeltas[index] ?? 0;
+          const deltaLabel = delta > 0 ? `+${delta}` : `${delta}`;
+          return `
+            <div class="domain-control">
+              <div>
+                <span>${domain}</span>
+                <p class="domain-hint">Today's net change: ${deltaLabel}</p>
+              </div>
+              <div class="score-buttons">
+                <button class="btn-minus" type="button" onclick="updateRadarScore(${widgetId}, ${index}, -1)">-1</button>
+                <button class="btn-plus" type="button" onclick="updateRadarScore(${widgetId}, ${index}, 1)">+1</button>
+              </div>
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
 
-  data.theta.forEach((domain, i) => {
-    const div = document.createElement("div");
-    div.className = "domain-control";
-    div.innerHTML = `
-      <h3>${domain}</h3>
-      <button class="btn-minus" onclick="updateScore(${i}, -1)">-1</button>
-      <button class="btn-plus" onclick="updateScore(${i}, +1)">+1</button>
+function renderBarWidget(graphId, widget) {
+  const series = widget.series || { labels: [], values: [] };
+  const trace = {
+    x: series.labels,
+    y: series.values,
+    name: widget.config.metric_name,
+    type: "bar",
+    marker: { color: "#f59e0b" },
+  };
+
+  const yAxisTitle = widget.config.unit
+    ? `${widget.config.metric_name} (${widget.config.unit})`
+    : widget.config.metric_name;
+
+  Plotly.react(
+    graphId,
+    [trace],
+    {
+      margin: { t: 20, r: 20, b: 50, l: 50 },
+      xaxis: { title: "Last 30 days", type: "category" },
+      yaxis: { title: yAxisTitle },
+      bargap: 0.35,
+    },
+    {
+      responsive: true,
+      displayModeBar: false,
+    },
+  );
+}
+
+function renderBarActions(widgetId, config, todayEntry) {
+  const actionsEl = document.getElementById(`widget-actions-${widgetId}`);
+  const unitLabel = config.unit ? ` (${config.unit})` : "";
+  const buttonLabel = todayEntry ? "Update Today" : "Add Today";
+  const inputValue = todayEntry ? todayEntry.value : "";
+
+  actionsEl.innerHTML = `
+    <div class="daily-note">You can only create or update today's bar. Past days lock after midnight.</div>
+    <form class="bar-entry-form" onsubmit="submitBarEntry(event, ${widgetId})">
+      <label for="bar-input-${widgetId}">Today's ${config.metric_name}${unitLabel}</label>
+      <div class="bar-entry-row">
+        <input id="bar-input-${widgetId}" type="number" min="0" step="0.5" placeholder="Enter today's value" value="${inputValue}" />
+        <button class="btn-plus" type="submit">${buttonLabel}</button>
+      </div>
+    </form>
+  `;
+}
+
+async function updateRadarScore(widgetId, index, change) {
+  try {
+    const data = await fetchJson(`/widgets/${widgetId}/radar/update-score`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index, change }),
+    });
+
+    const widget = dashboardWidgets.find((item) => item.id === widgetId);
+    if (!widget) {
+      return;
+    }
+
+    widget.plot = {
+      theta: data.theta,
+      r: data.r,
+    };
+    widget.config.scores = data.scores;
+    widget.config.today_deltas = data.today_deltas;
+
+    renderRadarWidget(`widget-graph-${widgetId}`, widget);
+    renderRadarActions(widget.id, widget.config.domains, widget.config.today_deltas);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function submitBarEntry(event, widgetId) {
+  event.preventDefault();
+
+  const input = document.getElementById(`bar-input-${widgetId}`);
+  const value = Number.parseFloat(input.value);
+
+  if (Number.isNaN(value) || value < 0) {
+    alert("Please enter a valid positive number.");
+    return;
+  }
+
+  const widget = dashboardWidgets.find((item) => item.id === widgetId);
+  if (!widget) {
+    return;
+  }
+
+  const method = widget.today_entry ? "PUT" : "POST";
+
+  try {
+    const data = await fetchJson(`/widgets/${widgetId}/bar/entry`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+
+    Object.assign(widget, data.widget);
+    renderBarWidget(`widget-graph-${widgetId}`, widget);
+    renderBarActions(widget.id, widget.config, widget.today_entry);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function removeWidget(widgetId) {
+  const widget = dashboardWidgets.find((item) => item.id === widgetId);
+  if (!widget) {
+    return;
+  }
+
+  const confirmed = window.confirm(`Are you sure you want to remove "${widget.title}"? This will delete its saved data.`);
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await fetchJson(`/widgets/${widgetId}`, {
+      method: "DELETE",
+    });
+    dashboardWidgets = dashboardWidgets.filter((item) => item.id !== widgetId);
+    renderDashboard();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function openAddWidgetModal() {
+  widgetModalEl.style.display = "flex";
+  widgetModalTitleEl.textContent = "Add Graphic";
+  widgetFormErrorEl.hidden = true;
+  widgetFormErrorEl.textContent = "";
+  renderWidgetTypeStep();
+}
+
+function closeWidgetModal() {
+  widgetModalEl.style.display = "none";
+  widgetFormEl.dataset.step = "";
+  widgetFormEl.dataset.widgetType = "";
+  widgetFormContentEl.innerHTML = "";
+}
+
+function renderWidgetTypeStep() {
+  widgetFormEl.dataset.step = "choose-type";
+  widgetModalTitleEl.textContent = "Choose a Graphic";
+  widgetFormContentEl.innerHTML = `
+    <div class="type-grid">
+      <label class="type-option">
+        <input type="radio" name="widgetType" value="radar" checked />
+        <span>Radar chart</span>
+        <small>Track several growth domains at once.</small>
+      </label>
+      <label class="type-option">
+        <input type="radio" name="widgetType" value="bar" />
+        <span>Bar chart</span>
+        <small>Track one daily habit or metric.</small>
+      </label>
+    </div>
+  `;
+}
+
+function renderWidgetConfigStep(widgetType) {
+  widgetFormEl.dataset.step = "configure";
+  widgetFormEl.dataset.widgetType = widgetType;
+  widgetModalTitleEl.textContent = "Graphic Parameters";
+
+  if (widgetType === "radar") {
+    widgetFormContentEl.innerHTML = `
+      <label class="field-label" for="widget-title">Graphic title</label>
+      <input id="widget-title" name="title" type="text" placeholder="Optional title for this radar" />
+
+      <label class="field-label" for="radar-domains">Radar domains</label>
+      <textarea
+        id="radar-domains"
+        name="domains"
+        rows="5"
+        placeholder="Enter at least three domain names, separated by commas. Example: Sport, Focus, Learning"
+      ></textarea>
+      <p class="field-help">Enter the number and name of at least three domains.</p>
     `;
-    controlsDiv.appendChild(div);
-  });
+    return;
+  }
+
+  widgetFormContentEl.innerHTML = `
+    <label class="field-label" for="widget-title">Graphic title</label>
+    <input id="widget-title" name="title" type="text" placeholder="Optional title for this bar chart" />
+
+    <label class="field-label" for="metric-name">Habit or metric name</label>
+    <input id="metric-name" name="metric_name" type="text" placeholder="Examples: Reading, Pushups, Deep Work" />
+
+    <label class="field-label" for="metric-unit">Unit</label>
+    <input id="metric-unit" name="unit" type="text" placeholder="Examples: pages, reps, hours" />
+  `;
 }
 
-async function updateScore(index, change) {
-  const res = await fetch("/update-score", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ index, change }),
-  });
+widgetFormEl.addEventListener("submit", async (event) => {
+  event.preventDefault();
 
-  const data = await res.json();
-  updateGraph(data);
-}
+  const step = widgetFormEl.dataset.step;
+  widgetFormErrorEl.hidden = true;
+  widgetFormErrorEl.textContent = "";
 
-function closeModal() {
-  document.getElementById("modal").style.display = "none";
-}
+  if (step === "choose-type") {
+    const selectedType = widgetFormEl.querySelector('input[name="widgetType"]:checked')?.value;
+    renderWidgetConfigStep(selectedType);
+    return;
+  }
 
-document.getElementById("openModalBtn")?.addEventListener("click", () => {
-  document.getElementById("modal").style.display = "flex";
+  const widgetType = widgetFormEl.dataset.widgetType;
+  const payload = {
+    type: widgetType,
+    title: document.getElementById("widget-title")?.value.trim() || "",
+  };
+
+  if (widgetType === "radar") {
+    const rawDomains = document.getElementById("radar-domains").value;
+    payload.domains = rawDomains.split(",").map((domain) => domain.trim());
+  } else if (widgetType === "bar") {
+    payload.metric_name = document.getElementById("metric-name").value.trim();
+    payload.unit = document.getElementById("metric-unit").value.trim();
+  }
+
+  try {
+    await fetchJson("/widgets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    closeWidgetModal();
+    await loadDashboard();
+  } catch (error) {
+    widgetFormErrorEl.hidden = false;
+    widgetFormErrorEl.textContent = error.message;
+  }
 });
 
-window.onclick = (e) => {
-  const modal = document.getElementById("modal");
-  if (e.target === modal) {
-    modal.style.display = "none";
+window.addEventListener("click", (event) => {
+  if (event.target === widgetModalEl) {
+    closeWidgetModal();
   }
-};
+});
 
-// ====== HOURS TRACKING FUNCTIONS (Bar Chart) ======
-
-async function loadHoursData() {
-  const res = await fetch("/get-hours");
-  const data = await res.json();
-
-  updateHoursGraph(data);
-  // updateHoursTable(data);
-}
-
-// function updateHoursGraph(data) {
-//   if (data.length === 0) {
-//     document.getElementById("hours-graph").innerHTML =
-//       "<p style='text-align: center; color: #666;'>No data yet. Add your first entry above!</p>";
-//     return;
-//   }
-
-//   const dates = data.map((entry) => entry.date);
-//   const workHours = data.map((entry) => entry.work_hours);
-//   const studyHours = data.map((entry) => entry.study_hours);
-
-//   const trace1 = {
-//     x: dates,
-//     y: workHours,
-//     name: "Work Hours",
-//     type: "bar",
-//     marker: { color: "#ffa500" },
-//     // barcornerradius: 15,
-//   };
-
-//   // const trace2 = {
-//   //   x: dates,
-//   //   y: studyHours,
-//   //   name: 'Study Hours',
-//   //   type: 'bar',
-//   //   marker: { color: '#2196F3' }
-//   // };
-
-//   const layout = {
-//     barmode: "group",
-//     xaxis: { title: "Date" },
-//     yaxis: { title: "Hours" },
-//     margin: { t: 20 },
-//   };
-
-//   Plotly.newPlot("hours-graph", trace1, { responsive: true });
-// }
-
-function updateHoursGraph(data, N = 30) {
-  const graphDiv = document.getElementById("hours-graph");
-
-  if (!data || data.length === 0) {
-    graphDiv.innerHTML =
-      "<p style='text-align: center; color: #666;'>No data yet. Add your first entry above!</p>";
-    return;
-  }
-
-  // Create fixed X axis: day 1 ... day N
-  const days = Array.from({ length: N }, (_, i) => `day ${i + 1}`);
-
-  // Extract hours from dataset
-  const workHoursRaw = data.map(entry => entry.work_hours);
-
-  // Fill up to N with 0 so bars don't stretch
-  const workHours = Array.from({ length: N }, (_, i) => workHoursRaw[i] ?? 0);
-
-  const trace1 = {
-    x: days,
-    y: workHours,
-    name: "Work Hours",
-    type: "bar",
-    marker: { color: "orange" }
-  };
-
-  const layout = {
-    barmode: "group",
-    xaxis: {
-      title: "Days",
-      type: "category"
-    },
-    yaxis: { title: "Hours" },
-    margin: { t: 20 },
-
-    bargroupgap: 0.5,
-    barcornerradius: 50,
-  };
-
-  Plotly.newPlot("hours-graph", [trace1], layout, { responsive: true });
-}
-
-// function updateHoursTable(data) {
-//   const tbody = document.getElementById('hours-table-body');
-//   tbody.innerHTML = '';
-
-//   if (data.length === 0) {
-//     tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No entries yet</td></tr>';
-//     return;
-//   }
-
-//   data.forEach(entry => {
-//     const row = `
-//       <tr>
-//         <td>${entry.date}</td>
-//         <td>${entry.work_hours}</td>
-//         <td>
-//           <button class="delete-btn" onclick="deleteHoursEntry(${entry.id})">Delete</button>
-//         </td>
-//       </tr>
-//     `;
-//     tbody.innerHTML += row;
-//   });
-// }
-
-async function addHoursEntry() {
-  const workHours = parseFloat(
-    document.getElementById("work-hours-input").value,
-  );
-  // const studyHours = parseFloat(document.getElementById('study-hours-input').value);
-
-  if (
-    isNaN(workHours) ||
-    // isNaN(studyHours) ||
-    workHours < 0
-    // studyHours < 0
-  ) {
-    alert("Please enter valid hours (positive numbers)");
-    return;
-  }
-
-  const res = await fetch("/add-hours", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // body: JSON.stringify({ work_hours: workHours, study_hours: studyHours }),
-    body: JSON.stringify({ work_hours: workHours }),
-  });
-
-  if (res.ok) {
-    // Clear inputs
-    document.getElementById("work-hours-input").value = "";
-    // document.getElementById('study-hours-input').value = '';
-
-    // Reload data
-    loadHoursData();
-  }
-}
-
-async function deleteHoursEntry(id) {
-  if (!confirm("Delete this entry?")) return;
-
-  await fetch(`/delete-hours/${id}`, { method: "DELETE" });
-  loadHoursData();
-}
-
-// ====== INITIALIZE ON PAGE LOAD ======
-checkStatus();
+loadDashboard().catch((error) => {
+  emptyStateEl.hidden = false;
+  emptyStateEl.querySelector("p").textContent = error.message;
+});

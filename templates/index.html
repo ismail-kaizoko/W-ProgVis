@@ -5,67 +5,49 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   </head>
-  
   <body>
-    <!-- Logout Header -->
-    <div style="text-align: right; padding: 10px; background: #f5f5f5;">
-      Welcome, <strong>{{ username }}</strong>! 
-      <a href="/logout" style="margin-left: 10px; color: #667eea; text-decoration: none;">Logout</a>
-    </div>
+    <header class="topbar">
+      <div>
+        Welcome, <strong>{{ username }}</strong>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-plus topbar-add-button" type="button" onclick="openAddWidgetModal()">
+          + Add Graphic
+        </button>
+        <a href="/logout" class="logout-link">Logout</a>
+      </div>
+    </header>
 
-    <!-- Modal for Domain Updates -->
-    <div id="modal" class="modal">
+    <main class="page-shell">
+      <section class="hero">
+        <h1>Life Evolution Tracker</h1>
+        <p>Start with an empty dashboard, then add the graphics you want from the top-right button.</p>
+      </section>
+
+      <section id="empty-state" class="empty-state" hidden>
+        <h2>Your dashboard is empty</h2>
+        <p>Use the top-right Add Graphic button to create your first chart.</p>
+      </section>
+
+      <section id="dashboard" class="dashboard-row"></section>
+    </main>
+
+    <div id="widget-modal" class="modal">
       <div class="modal-content">
-        <h2>Update Domains</h2>
-        <div id="modal-controls"></div>
-        <button onclick="closeModal()">Done</button>
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <h1>Life Evolution Tracker</h1>
-
-    <!-- Setup Section for Radar Chart -->
-    <div id="setup">
-      <h2>Define your life domains</h2>
-      <input
-        id="domainInput"
-        type="text"
-        placeholder="Sport, Intellect, Spirit, Will-power, Detox"
-        style="width: 100%; padding: 10px; font-size: 16px"
-      />
-      <button class="btn-plus" onclick="initApp()">Start</button>
-    </div>
-
-    <!-- App Section - Radar Chart -->
-    <div id="app" style="display: none">
-      <h2>Domain Progress (Radar Chart)</h2>
-      <div id="graph"></div>
-      <button id="openModalBtn" class="btn-plus">Update Domains</button>
-    </div>
-
-    <!-- Hours Tracking Section - Bar Chart -->
-    <div id="hours-section" style="display: none; margin-top: 40px;">
-      <h2>Hours Tracking (Bar Chart)</h2>
-      
-      <!-- Add Hours Form -->
-      <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-        <h3>Add Today's Hours</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <div>
-            <label>Work Hours:</label>
-            <input type="number" id="work-hours-input" placeholder="e.g., 8" step="0.5" min="0" style="width: 100%; padding: 8px;">
-          </div>
-          <!-- <div>
-            <label>Study Hours:</label>
-            <input type="number" id="study-hours-input" placeholder="e.g., 3" step="0.5" min="0" style="width: 100%; padding: 8px;">
-          </div> -->
+        <div class="modal-header">
+          <h2 id="widget-modal-title">Add Graphic</h2>
+          <button class="modal-close" type="button" onclick="closeWidgetModal()">x</button>
         </div>
-        <button class="btn-plus" onclick="addHoursEntry()" style="margin-top: 10px;">Add Entry</button>
+        <form id="widget-form">
+          <div id="widget-form-content"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeWidgetModal()">Cancel</button>
+            <button type="submit" class="btn-plus">Create Graphic</button>
+          </div>
+          <p id="widget-form-error" class="form-error" hidden></p>
+        </form>
       </div>
-
-      <!-- Bar Chart -->
-      <div id="hours-graph" style="height: 400px;"></div>
+    </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
   </body>
