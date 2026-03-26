@@ -61,6 +61,9 @@ function renderDashboard() {
     } else if (widget.type === "bar") {
       renderBarWidget(graphId, widget);
       renderBarActions(widget.id, widget.config, widget.today_entry);
+    } else if (widget.type === "pie") {
+      renderPieWidget(graphId, widget);
+      renderPieActions(widget.id, widget);
     }
   });
 
@@ -176,6 +179,88 @@ function renderBarActions(widgetId, config, todayEntry) {
   `;
 }
 
+function renderPieWidget(graphId, widget) {
+  const plot = widget.plot || { labels: [], values: [], colors: [] };
+  const categoryCount = widget.config.categories.length;
+  const pull = plot.labels.map((_, index) => (index === categoryCount ? 0.06 : 0));
+
+  Plotly.react(
+    graphId,
+    [
+      {
+        type: "pie",
+        labels: plot.labels,
+        values: plot.values,
+        hole: 0.4,
+        pull,
+        sort: false,
+        marker: {
+          colors: plot.colors,
+          line: { color: "#ffffff", width: 2 },
+        },
+        textinfo: "label+percent",
+        hoverinfo: "label+percent+value",
+      },
+    ],
+    {
+      margin: { t: 20, r: 20, b: 20, l: 20 },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      showlegend: true,
+      legend: {
+        x: 1,
+        y: 0.5,
+        font: { size: 12 },
+      },
+      font: {
+        family: "Georgia, Times New Roman, serif",
+        size: 14,
+        color: "#333",
+      },
+    },
+    {
+      responsive: true,
+      displayModeBar: false,
+    },
+  );
+}
+
+function renderPieActions(widgetId, widget) {
+  const actionsEl = document.getElementById(`widget-actions-${widgetId}`);
+  const categories = widget.config.categories || [];
+  const todayEntries = widget.today_entries || [];
+  const trackedLabel = Number.parseFloat(widget.plot.total_tracked || 0).toFixed(1);
+  const wastedLabel = Number.parseFloat(widget.plot.wasted_hours || 0).toFixed(1);
+
+  actionsEl.innerHTML = `
+    <div class="daily-note">This chart only saves today's hours. At midnight, the next day starts fresh.</div>
+    <div class="wasted-highlight">
+      <span>Wasted Time</span>
+      <strong>${wastedLabel}h</strong>
+      <small>${trackedLabel}h tracked today</small>
+    </div>
+    <form class="pie-entry-form" onsubmit="submitPieEntry(event, ${widgetId})">
+      ${categories
+        .map(
+          (category, index) => `
+            <label class="field-label" for="pie-input-${widgetId}-${index}">${category}</label>
+            <input
+              id="pie-input-${widgetId}-${index}"
+              type="number"
+              min="0"
+              max="24"
+              step="0.25"
+              value="${todayEntries[index] ?? 0}"
+              placeholder="Hours for today"
+            />
+          `,
+        )
+        .join("")}
+      <button class="btn-plus pie-save-button" type="submit">Save Today</button>
+    </form>
+  `;
+}
+
 async function updateRadarScore(widgetId, index, change) {
   try {
     const data = await fetchJson(`/widgets/${widgetId}/radar/update-score`, {
@@ -236,6 +321,45 @@ async function submitBarEntry(event, widgetId) {
   }
 }
 
+async function submitPieEntry(event, widgetId) {
+  event.preventDefault();
+
+  const widget = dashboardWidgets.find((item) => item.id === widgetId);
+  if (!widget) {
+    return;
+  }
+
+  const hours = widget.config.categories.map((_, index) => {
+    const input = document.getElementById(`pie-input-${widgetId}-${index}`);
+    return Number.parseFloat(input.value || "0");
+  });
+
+  if (hours.some((value) => Number.isNaN(value) || value < 0)) {
+    alert("Please enter valid hour values.");
+    return;
+  }
+
+  const total = hours.reduce((sum, value) => sum + value, 0);
+  if (total > 24) {
+    alert("Tracked hours cannot exceed 24.");
+    return;
+  }
+
+  try {
+    const data = await fetchJson(`/widgets/${widgetId}/pie/entry`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hours }),
+    });
+
+    Object.assign(widget, data.widget);
+    renderPieWidget(`widget-graph-${widgetId}`, widget);
+    renderPieActions(widget.id, widget);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 async function removeWidget(widgetId) {
   const widget = dashboardWidgets.find((item) => item.id === widgetId);
   if (!widget) {
@@ -288,6 +412,11 @@ function renderWidgetTypeStep() {
         <span>Bar chart</span>
         <small>Track one daily habit or metric.</small>
       </label>
+      <label class="type-option">
+        <input type="radio" name="widgetType" value="pie" />
+        <span>Pie chart</span>
+        <small>Split today's 24 hours across activities.</small>
+      </label>
     </div>
   `;
 }
@@ -310,6 +439,23 @@ function renderWidgetConfigStep(widgetType) {
         placeholder="Enter at least three domain names, separated by commas. Example: Sport, Focus, Learning"
       ></textarea>
       <p class="field-help">Enter the number and name of at least three domains.</p>
+    `;
+    return;
+  }
+
+  if (widgetType === "pie") {
+    widgetFormContentEl.innerHTML = `
+      <label class="field-label" for="widget-title">Graphic title</label>
+      <input id="widget-title" name="title" type="text" placeholder="Optional title for this pie chart" />
+
+      <label class="field-label" for="pie-categories">Activities</label>
+      <textarea
+        id="pie-categories"
+        name="categories"
+        rows="5"
+        placeholder="Enter activities separated by commas. Example: Work, Transport, Sleep, Cooking"
+      ></textarea>
+      <p class="field-help">"Wasted" is added automatically from the remaining hours in the day.</p>
     `;
     return;
   }
@@ -351,6 +497,9 @@ widgetFormEl.addEventListener("submit", async (event) => {
   } else if (widgetType === "bar") {
     payload.metric_name = document.getElementById("metric-name").value.trim();
     payload.unit = document.getElementById("metric-unit").value.trim();
+  } else if (widgetType === "pie") {
+    const rawCategories = document.getElementById("pie-categories").value;
+    payload.categories = rawCategories.split(",").map((category) => category.trim());
   }
 
   try {

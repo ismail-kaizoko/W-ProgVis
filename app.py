@@ -142,6 +142,56 @@ class BarEntry(db.Model):
         }
 
 
+class PieWidgetData(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    widget_id = db.Column(
+        db.Integer, db.ForeignKey("dashboard_widget.id"), unique=True, nullable=False
+    )
+    categories = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    widget = db.relationship(
+        "DashboardWidget",
+        backref=db.backref("pie_data", uselist=False, cascade="all, delete-orphan"),
+    )
+
+    def get_categories(self):
+        return json.loads(self.categories)
+
+    def set_categories(self, category_list):
+        self.categories = json.dumps(category_list)
+
+    def to_dict(self):
+        return {
+            "categories": self.get_categories(),
+        }
+
+
+class PieEntry(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    widget_id = db.Column(db.Integer, db.ForeignKey("dashboard_widget.id"), nullable=False)
+    category_index = db.Column(db.Integer, nullable=False)
+    hours = db.Column(db.Float, nullable=False, default=0)
+    entry_date = db.Column(db.Date, nullable=False, default=date.today)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    widget = db.relationship(
+        "DashboardWidget",
+        backref=db.backref("pie_entries", cascade="all, delete-orphan"),
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("widget_id", "category_index", "entry_date", name="uq_pie_entry_widget_category_date"),
+    )
+
+    def to_dict(self):
+        return {
+            "category_index": self.category_index,
+            "hours": self.hours,
+            "entry_date": self.entry_date.strftime("%Y-%m-%d"),
+        }
+
+
 with app.app_context():
     db.create_all()
 
@@ -169,6 +219,28 @@ def normalize_domains(raw_domains):
     if len(domains) < 3:
         raise ValueError("Please enter at least three domains for a radar chart.")
     return domains
+
+
+def normalize_pie_categories(raw_categories):
+    categories = [category.strip() for category in raw_categories if category and category.strip()]
+    if not categories:
+        raise ValueError("Please enter at least one activity for the pie chart.")
+
+    normalized = []
+    seen = set()
+    for category in categories:
+        lower_category = category.lower()
+        if lower_category == "wasted":
+            continue
+        if lower_category in seen:
+            continue
+        seen.add(lower_category)
+        normalized.append(category)
+
+    if not normalized:
+        raise ValueError('Please add at least one activity other than "Wasted".')
+
+    return normalized
 
 
 def build_bar_series(entries, days=30):
@@ -227,11 +299,55 @@ def serialize_bar_widget(widget):
     }
 
 
+def get_today_pie_entries(widget, category_count):
+    today = current_day()
+    entries = (
+        PieEntry.query.filter_by(widget_id=widget.id, entry_date=today)
+        .order_by(PieEntry.category_index)
+        .all()
+    )
+    entry_map = {item.category_index: item.hours for item in entries}
+    return [entry_map.get(index, 0) for index in range(category_count)]
+
+
+def build_pie_plot(values):
+    total_tracked = sum(values)
+    wasted_hours = max(0, 24 - total_tracked)
+    base_colors = ["#FFA500", "#D90AE4", "#2196F3", "#FF5722", "#16A34A", "#E11D48"]
+    category_colors = [base_colors[index % len(base_colors)] for index in range(len(values))]
+    return {
+        "values": values + [wasted_hours],
+        "wasted_hours": wasted_hours,
+        "total_tracked": total_tracked,
+        "colors": category_colors + ["#363436"],
+    }
+
+
+def serialize_pie_widget(widget):
+    categories = widget.pie_data.get_categories()
+    today_values = get_today_pie_entries(widget, len(categories))
+    plot = build_pie_plot(today_values)
+    return {
+        **widget.to_dict(),
+        "config": widget.pie_data.to_dict(),
+        "today_entries": today_values,
+        "plot": {
+            "labels": categories + ["Wasted"],
+            "values": plot["values"],
+            "colors": plot["colors"],
+            "wasted_hours": plot["wasted_hours"],
+            "total_tracked": plot["total_tracked"],
+        },
+    }
+
+
 def serialize_widget(widget):
     if widget.widget_type == "radar":
         return serialize_radar_widget(widget)
     if widget.widget_type == "bar":
         return serialize_bar_widget(widget)
+    if widget.widget_type == "pie":
+        return serialize_pie_widget(widget)
     return widget.to_dict()
 
 
@@ -354,6 +470,24 @@ def create_widget():
                 unit=unit or None,
             )
         )
+    elif widget_type == "pie":
+        try:
+            categories = normalize_pie_categories(data.get("categories", []))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        widget = DashboardWidget(
+            user_id=user_id,
+            widget_type="pie",
+            title=title or "Time Distribution",
+            position=position,
+        )
+        db.session.add(widget)
+        db.session.flush()
+
+        pie_data = PieWidgetData(widget_id=widget.id)
+        pie_data.set_categories(categories)
+        db.session.add(pie_data)
     else:
         return jsonify({"error": "Unsupported widget type"}), 400
 
@@ -513,6 +647,62 @@ def delete_bar_entry(widget_id):
     db.session.delete(existing_entry)
     db.session.commit()
     return jsonify({"widget": serialize_bar_widget(widget)})
+
+
+@app.route("/widgets/<int:widget_id>/pie/entry", methods=["PUT"])
+@login_required
+def update_pie_entry(widget_id):
+    widget = DashboardWidget.query.filter_by(
+        id=widget_id, user_id=session["user_id"], widget_type="pie"
+    ).first_or_404()
+
+    data = request.get_json() or {}
+    raw_hours = data.get("hours")
+    categories = widget.pie_data.get_categories()
+
+    if not isinstance(raw_hours, list) or len(raw_hours) != len(categories):
+        return jsonify({"error": "Please provide one hour value for each activity."}), 400
+
+    parsed_hours = []
+    for value in raw_hours:
+        try:
+            parsed_value = float(value)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Please enter valid hour values."}), 400
+
+        if parsed_value < 0:
+            return jsonify({"error": "Hours cannot be negative."}), 400
+
+        parsed_hours.append(round(parsed_value, 2))
+
+    if sum(parsed_hours) > 24:
+        return jsonify({"error": "Tracked hours cannot exceed 24 for the current day."}), 400
+
+    today = current_day()
+    existing_entries = PieEntry.query.filter_by(widget_id=widget.id, entry_date=today).all()
+    existing_by_index = {entry.category_index: entry for entry in existing_entries}
+
+    for index, hours in enumerate(parsed_hours):
+        existing_entry = existing_by_index.get(index)
+        if hours == 0:
+            if existing_entry:
+                db.session.delete(existing_entry)
+            continue
+
+        if existing_entry:
+            existing_entry.hours = hours
+        else:
+            db.session.add(
+                PieEntry(
+                    widget_id=widget.id,
+                    category_index=index,
+                    hours=hours,
+                    entry_date=today,
+                )
+            )
+
+    db.session.commit()
+    return jsonify({"widget": serialize_pie_widget(widget)})
 
 
 if __name__ == "__main__":

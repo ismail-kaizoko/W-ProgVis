@@ -194,6 +194,11 @@ textarea {
   gap: 10px;
 }
 
+.pie-entry-form {
+  display: grid;
+  gap: 8px;
+}
+
 .bar-entry-row {
   display: flex;
   gap: 10px;
@@ -214,6 +219,39 @@ textarea {
   margin: 12px 0 8px;
   font-weight: 700;
 }
+
+.wasted-highlight {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 55%),
+    #1b1b1b;
+  color: #fff7ed;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.wasted-highlight span {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  color: rgba(255, 247, 237, 0.72);
+}
+
+.wasted-highlight strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.wasted-highlight small {
+  color: rgba(255, 247, 237, 0.72);
+}
+
+.pie-save-button {
+  margin-top: 8px;
+ }
 
 .field-help {
   margin: 8px 0 0;
