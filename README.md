@@ -1,36 +1,72 @@
 <!-- 
 # W-ProgVis 
 
-This is a personal Web-App to track and boost personal self progress and grow through insightfull visuals. 
-The key is to motivate discipline and consitency, specially through hard tasks where the ROI, or the reward system takes quite a long time, which in a highly addictive domaine-accros is usually nuglected. the app solves this by giving a track on a daily basis, serving as a motivation before the reward hits the person back. 
+**W-ProgVis** is a personal web app that helps you track self-improvement and visualize your progress over time.
 
-If you feel yourself capable, and worthy of smtg and wanna challenge your confort zone ? Do you need that first push ? W-ProgVis is here, pull that dusty TO-DO list, get off your gaming chair position, and get to wor !!!
+It’s built to strengthen discipline and consistency—especially for long-term goals where results take time. In a world of instant gratification and *Dopamine* addiction, staying motivated can be difficult before seeing real outcomes.
+
+W-ProgVis helps by giving you that initial push, by providing a clear, daily view of your progress, so you stay motivated even before the rewards fully kick in.
+
+>> Step out of your comfort zone. Pick up your dusty TO-DO list.  and Get to work 🚀
 
 
-### Current state : 
-Visual 1 : A Radar-chart of self personal grow : you whose at least three axis of your growth, at each day you give a +1 to an axis you have touched, pushing the boundaries further, in a matter of some days you will notice clearely a difference. the chart keep a track of your state at a 20 days before, showing the amount of progress you made for each axes.
-> rules : 
-- you can't score more than +1 to an axis a day, we cherish consistensy and disciplin
-- if you haven't worked on some axis for 4 days, it automatically gives you a negatove score -1, shrinking the radar chart instead of spreading.
-- reaching higher scores becomes more difficult by time, reaching 100% (it is just how life works)
+### Visual 1 — Personal Growth Radar
 
+A radar chart that reflects your personal growth across multiple axes. Choose at least three areas to track, and each day assign **+1** to the axis you worked on. Over time, consistent effort expands the chart, making your progress clearly visible.
+
+The chart also compares your current state with where you were 20 days ago, helping you see how far you’ve come in each area.
+
+<details>
+<summary><strong>Rules</strong></summary>
+
+- You can assign **only +1 per axis per day** — consistency over intensity.  
+- If an axis is inactive for **4 consecutive days**, it receives **-1 automatically**, shrinking that part of the chart.
+
+</details>
+
+**Additional mechanics:**
+
+- **The higher you climb, the easier it is to fall.** Progress can drop quickly if consistency breaks, reinforcing the importance of daily effort.  
+- **Recovery is fast.** Even after a collapse, a few days of consistent work can rebuild your progress—encouraging strong comebacks.
 <insert image to right>
 
 
-Visual 2 :
-A bar plot : keeping a track of a specefic habit you want to built on a DAILY basis, it can customized to anything : how any pushups you did in a day, pages you read, hours of working on yourself, minute of jogging ....
-This is the best plot to transfer your thought from "ONE DAY" to "DAY ONE"
-<insert image at right>
+### Visual 2 — Daily Habit Tracker
 
-> rules : 
-- simple, each day enter a number, and see the bars speak for them selves, naturally it keeps the person to not break the beautiful pattern, serving as a  positive hook to keep the habit. Consistency is an art, and not everyone is an artist (wink smiley) 
+A simple bar chart to track a specific habit on a daily basis. It can be customized to anything—push-ups, pages read, hours of focused work, minutes of jogging, and more.
+
+The goal is to shift your mindset from *“one day”* to *“day one”*, as you watch your bars grow taller with each consistent effort.
+
+<p align="right">
+  <em>(insert image here)</em>
+</p>
+
+<details>
+<summary><strong>Rules</strong></summary>
+
+- Keep it simple: enter a value each day and let the bars speak for themselves.  
+- Over time, the visual pattern becomes its own motivation—you won’t want to break the streak.
+
+</details>
+
+Consistency is an art—and this is your canvas 😉
 
 
-Visual 3 : 
-A pie chart that tracks your daily performance and organisation, it demands a little discipline to track your activities during the day, the plot gives an idea of where your day is Gone, your objective is to combat the "WASTED" in balck color, that Black corner is where usually where one's life get wasted : DoomScrolling, watching TV, Gaming ..., chilling activities but too dangerous if they become excessive. FIGHT THE DARKNESS (sword emojy).
+### Visual 3 — Daily Time Breakdown
 
-> rules : 
-- each day enter your daily track of hours, by the end of a week/month a summary is given to you, forshowing that we do have time, but bad managment.
+A pie chart that reflects how your day is spent. It requires a bit of discipline, as you’ll need to log your activities, but in return it gives you a clear picture of where your time actually goes.
+
+Your main objective is to reduce the **“WASTED”** portion (shown in black)—the space where time slips into doomscrolling, excessive TV, gaming, and other distractions. Leisure is important, but when it takes over, it holds you back.
+
+Fight the darkness ⚔️
+
+<details>
+<summary><strong>Rules</strong></summary>
+
+- Log your daily hours across activities.  
+- At the end of each week or month, a summary highlights how your time was managed—often revealing that the issue isn’t lack of time, but how it’s used.
+
+</details>
 
 
 
@@ -60,61 +96,83 @@ Introduce a RANKED system, just similar to what in competitive games, where rank
 
 #### 💪 What Is This?
 
-This is a personal Web-App to track and boost personal self-progress and growth through insightful visuals. The key is to **motivate discipline and consistency**, especially through hard tasks where the ROI, or the reward system takes quite a long time *(which is usually hard specially in this domapine era)*. The app helps by giving you a track on a daily basis, serving as *motivation* before the taks rewards you back.
+**W-ProgVis** is a personal web app that helps you track self-improvement and visualize your progress over time.
 
->>> **Time to pull that Dusty TO-DO list and get to work 🔥🗡️**
+It’s built to strengthen discipline and consistency—especially for long-term goals where results take time. In a world of instant gratification and *Dopamine* addiction, staying motivated can be difficult before seeing real outcomes.
+
+W-ProgVis helps by giving you that initial push, by providing a clear, daily view of your progress, so you stay motivated even before the rewards fully kick in.
+
+>> Step out of your comfort zone. Pick up your dusty TO-DO list.  and Get to work 🚀
 
 ---
 
-### Current Features
+##### Current Features
 
-##### Visual 1: Radar Chart of Personal Growth
 
-<img src="docs/images/radar.png" align="right" width="450" alt="Radar Chart Example" />
+### Visual 1 — Personal Growth Radar
 
-You choose at least three axes of your desired growth. At each day you give a **+1** to an axis you have invested in (could be reading some pages, exercising ...), pushing the boundaries further. In a matter of some days, you will notice clearly a difference. The chart keeps a track of your state from 20 days before, showing the amount of progress you made for each axis.
+<img src="docs/images/radar.png" align="right" width="450" alt="Bar Plot Example" />
 
-###### 📋 Rules:
-- You **can't score more than +1** to an axis per day no matter the effort put—we cherish consistency and discipline-
-- If you haven't worked on an axis for **4 days**, it automatically gives you a **negative score (-1)**, shrinking the radar chart instead of spreading, meaning you loose progress the moment you stop, so keep it up.
-- Reaching higher scores becomes **more difficult over time**, approaching 100% is quite chellenging, but not imposible *(it is just how life works)*
+A radar chart that reflects your personal growth across multiple axes. Choose at least three areas to track, and each day assign **+1** to the axis you worked on. Over time, consistent effort expands the chart, making your progress clearly visible.
 
+The chart also compares your current state with where you were 20 days ago, helping you see how far you’ve come in each area.
+
+<details>
+<summary><strong>Rules & mechanics ⚙️</strong></summary>
+
+- You can assign **only +1 per axis per day** — consistency over intensity.  
+- If an axis is inactive for **4 consecutive days**, it receives **-1 automatically**, shrinking that part of the chart.
+
+- **The higher you climb, the easier it is to fall.** Progress can drop quickly if consistency breaks, reinforcing the importance of daily effort.  
+- **Recovery is fast.** Even after a collapse, a few days of consistent work can rebuild your progress—encouraging strong comebacks.
+
+</details>
+<br clear="right"/>
+
+
+
+
+---
+
+### Visual 2: Daily Habit Bar Plot
+
+<img src="docs/images/bar.png" align="right" width="550" alt="Bar Plot Example" />
+
+A simple, yet effective, bar chart to track a specific habit on a daily basis. It can be customized to anything : push-ups, pages read, hours of focused work, minutes of jogging, and more...
+
+The goal is to shift your mindset from *“One Day”* to *“Day One”*, as you watch your bars grow taller through days.
+
+>> Consistency is an art—and this is your canvas 😉
+
+
+<details>
+<summary><strong>Rules & mechanics ⚙️</strong></summary>
+
+- Keep it simple: enter a value each day and let the bars speak for themselves.  
+- Over time, the visual pattern becomes its own motivation—you won’t want to break the streak.
+
+</details>
 <br clear="right"/>
 
 ---
 
-##### Visual 2: Daily Habit Bar Plot
-
-<img src="docs/images/bar.png" align="right" width="450" alt="Bar Plot Example" />
-
-A bar plot keeping track of a specific habit you want to build on a **DAILY basis**. It can be adapted to anything: *how many pushups you did in a day, number pages you read, hours of working on yourself, minutes of jogging...*
-
-**This is the best plot to transfer your thought from "ONE DAY" to "DAY ONE"**
-
-###### 📋 Rules:
-- Simple: each day enter a number, and see the bars speak for themselves
-- Naturally, it keeps the person motivated to not break the beautiful pattern, serving as a positive hook to maintain the habit
-
->>>**Consistency is an art, and not everyone is an artist** 😉
-
-<br clear="right"/>
-
----
-
-##### Visual 3: Time Management Pie Chart
+### Visual 3: Time Management Pie Chart
 
 <img src="docs/images/pie.png" align="right" width="450" alt="Pie Chart Example" />
 
-A pie chart that tracks your daily performance and organization. It demands a little discipline to track your activities during the day. The plot gives an idea of where your day has gone. Your objective is to **combat the "WASTED"** in black color.
+A pie chart that reflects how your day is spent. It requires a bit of discipline, as you’ll need to log your activities, but in return it gives you a clear picture of where your time actually goes.
 
-That **black corner** is where usually one's life gets wasted: DoomScrolling, watching TV, gaming... chilling activities yes, one has right to rest, but too dangerous if they become excessive.
+Your main objective is to reduce the **“WASTED”** portion (shown in black)—the space where time slips into doomscrolling, excessive TV, gaming, and other distractions. Leisure is important, but when it takes over, it holds you back.
 
->>>**FIGHT THE DARKNESS ⚔️**
+>> Fight the darkness ⚔️
 
-###### 📋 Rules:
-- Each day enter your daily track of hours
-- By the end of a week/month, a summary is given to you
-- It shows that we **do have time, but bad management**
+<details>
+<summary><strong>Rules & mechanics ⚙️</strong></summary>
+
+- Log your daily hours across daily activities.  
+- At the end of each week or month, a summary highlights how your time was managed—often revealing that the issue isn’t lack of time, but how it’s used.
+
+</details>
 
 <br clear="right"/>
 
@@ -131,15 +189,17 @@ That **black corner** is where usually one's life gets wasted: DoomScrolling, wa
 
 #### 🚀 Future Plans
 
-##### Ranked System 🏆
+### Ranked System 🏆
 
-Introduce a **RANKED system**, just similar to what's in competitive games, where ranks will be attributed to each user. The higher ranks will obviously go to the most disciplined users who kept a steady progress through a long window of time, who challenged themselves and reached their better versions.
+Introduce a **RANKED system**, inspired by competitive games, where each user earns a rank based on their consistency and progress.
 
-<img src="docs/images/rank.png" align="center" width="500" alt="Pie Chart Example" />
+Higher ranks are achieved by those who stay disciplined over time, maintain steady progress, and continuously challenge themselves to improve. It’s not about short bursts of effort—but about showing up, day after day, through a long period of time.
 
 
+<img src="docs/images/rank.png" align="center" width="600" alt="Pie Chart Example" />
 
-A **leaderboard** will be shared across all users. **Let's see who is going to be our OBSIDIAN 💎**
+
+A **leaderboard** will be shared across all users. **Let's see who is going to be our OBSIDIAN** 💎
 
 
 
