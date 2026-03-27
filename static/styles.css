@@ -194,6 +194,12 @@ textarea {
   gap: 10px;
 }
 
+.pie-entry-form,
+.pie-add-domain-form {
+  display: grid;
+  gap: 10px;
+}
+
 .bar-entry-row {
   display: flex;
   gap: 10px;
@@ -213,6 +219,97 @@ textarea {
   display: block;
   margin: 12px 0 8px;
   font-weight: 700;
+}
+
+.compact-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pie-empty-state {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 320px;
+  padding: 28px;
+  border: 1px dashed var(--panel-border);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(248, 244, 234, 0.92), rgba(243, 239, 226, 0.9));
+  text-align: center;
+}
+
+.pie-empty-state strong {
+  font-size: 1.25rem;
+}
+
+.pie-empty-state p {
+  margin: 0;
+  max-width: 280px;
+  color: var(--muted);
+}
+
+.wasted-highlight {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 55%),
+    #1b1b1b;
+  color: #fff7ed;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.wasted-highlight span {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  color: rgba(255, 247, 237, 0.72);
+}
+
+.wasted-highlight strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.wasted-highlight small {
+  color: rgba(255, 247, 237, 0.72);
+}
+
+.pie-slider-group {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f3efe2;
+}
+
+.pie-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.pie-slider-header .field-label {
+  margin: 0;
+}
+
+.pie-slider-value {
+  min-width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--green-dark);
+  font-weight: 700;
+}
+
+.pie-slider {
+  width: 100%;
+  accent-color: var(--green);
+}
+
+.pie-save-button {
+  margin-top: 8px;
 }
 
 .field-help {
@@ -355,6 +452,10 @@ button:hover {
 
   .bar-entry-row {
     flex-direction: column;
+  }
+
+  .compact-grid {
+    grid-template-columns: 1fr;
   }
 
   .widget-body {

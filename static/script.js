@@ -61,6 +61,9 @@ function renderDashboard() {
     } else if (widget.type === "bar") {
       renderBarWidget(graphId, widget);
       renderBarActions(widget.id, widget.config, widget.today_entry);
+    } else if (widget.type === "pie") {
+      renderPieWidget(graphId, widget);
+      renderPieActions(widget.id, widget);
     }
   });
 
@@ -176,6 +179,164 @@ function renderBarActions(widgetId, config, todayEntry) {
   `;
 }
 
+function formatPieValue(hours, unitMode) {
+  if (unitMode === "minutes") {
+    const totalMinutes = Math.round(hours * 60);
+    const displayHours = Math.floor(totalMinutes / 60);
+    const displayMinutes = totalMinutes % 60;
+    return `${displayHours}h ${displayMinutes.toString().padStart(2, "0")}m`;
+  }
+
+  return `${Number.parseFloat(hours || 0).toFixed(2)}`;
+}
+
+function sliderValueFromHours(hours, unitMode) {
+  if (unitMode === "minutes") {
+    return Math.round((hours || 0) * 60);
+  }
+
+  return Number.parseFloat(hours || 0).toFixed(2);
+}
+
+function hoursFromSliderValue(value, unitMode) {
+  const numericValue = Number.parseFloat(value || "0");
+  if (Number.isNaN(numericValue)) {
+    return 0;
+  }
+
+  return unitMode === "minutes" ? numericValue / 60 : numericValue;
+}
+
+function updatePieSliderValue(widgetId, index) {
+  const widget = dashboardWidgets.find((item) => item.id === widgetId);
+  if (!widget) {
+    return;
+  }
+
+  const slider = document.getElementById(`pie-input-${widgetId}-${index}`);
+  const valueLabel = document.getElementById(`pie-value-${widgetId}-${index}`);
+  const hours = hoursFromSliderValue(slider.value, widget.config.unit_mode);
+
+  valueLabel.textContent = formatPieValue(hours, widget.config.unit_mode);
+}
+
+function renderPieWidget(graphId, widget) {
+  const plot = widget.plot || { labels: [], values: [], colors: [], has_entries: false };
+
+  if (!plot.has_entries) {
+    const graphEl = document.getElementById(graphId);
+    graphEl.innerHTML = `
+      <div class="pie-empty-state">
+        <strong>No entries for today yet</strong>
+        <p>Enter this day's activities to display the pie chart.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const categoryCount = widget.config.categories.length;
+  const pull = plot.labels.map((_, index) => (index === categoryCount ? 0.06 : 0));
+
+  Plotly.react(
+    graphId,
+    [
+      {
+        type: "pie",
+        labels: plot.labels,
+        values: plot.values,
+        hole: 0.4,
+        pull,
+        sort: false,
+        marker: {
+          colors: plot.colors,
+          line: { color: "#ffffff", width: 2 },
+        },
+        textinfo: "label+percent",
+        hovertemplate: "%{label}<br>%{value:.2f} hours (%{percent})<extra></extra>",
+      },
+    ],
+    {
+      margin: { t: 20, r: 20, b: 20, l: 20 },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      showlegend: true,
+      legend: {
+        x: 1,
+        y: 0.5,
+        font: { size: 12 },
+      },
+      font: {
+        family: "Georgia, Times New Roman, serif",
+        size: 14,
+        color: "#333",
+      },
+    },
+    {
+      responsive: true,
+      displayModeBar: false,
+    },
+  );
+}
+
+function renderPieActions(widgetId, widget) {
+  const actionsEl = document.getElementById(`widget-actions-${widgetId}`);
+  const categories = widget.config.categories || [];
+  const unitMode = widget.config.unit_mode || "numbers";
+  const todayEntries = widget.today_entries || [];
+  const trackedLabel = formatPieValue(widget.plot.total_tracked || 0, unitMode);
+  const wastedLabel = formatPieValue(widget.plot.wasted_hours || 0, unitMode);
+  const sliderStep = unitMode === "minutes" ? 5 : 0.25;
+  const sliderMax = unitMode === "minutes" ? 24 * 60 : 24;
+  const helperText =
+    unitMode === "minutes"
+      ? "Move each slider in 5-minute steps. The total day cannot exceed 24 hours."
+      : "Move each slider to assign today's values. The total day cannot exceed 24 hours.";
+
+  actionsEl.innerHTML = `
+    <div class="daily-note">Each day starts blank. Enter this day's activities to build the pie chart.</div>
+    <div class="wasted-highlight">
+      <span>Wasted Time</span>
+      <strong>${wastedLabel}</strong>
+      <small>${trackedLabel} tracked today</small>
+    </div>
+    <form class="pie-entry-form" onsubmit="submitPieEntry(event, ${widgetId})">
+      <p class="field-help">${helperText}</p>
+      ${categories
+        .map((category, index) => {
+          const hours = todayEntries[index] ?? 0;
+          const sliderValue = sliderValueFromHours(hours, unitMode);
+          return `
+            <div class="pie-slider-group">
+              <div class="pie-slider-header">
+                <label class="field-label" for="pie-input-${widgetId}-${index}">${category}</label>
+                <span class="pie-slider-value" id="pie-value-${widgetId}-${index}">${formatPieValue(hours, unitMode)}</span>
+              </div>
+              <input
+                id="pie-input-${widgetId}-${index}"
+                class="pie-slider"
+                type="range"
+                min="0"
+                max="${sliderMax}"
+                step="${sliderStep}"
+                value="${sliderValue}"
+                oninput="updatePieSliderValue(${widgetId}, ${index})"
+              />
+            </div>
+          `;
+        })
+        .join("")}
+      <button class="btn-plus pie-save-button" type="submit">Save Today</button>
+    </form>
+    <form class="pie-add-domain-form" onsubmit="submitPieCategory(event, ${widgetId})">
+      <label class="field-label" for="pie-new-category-${widgetId}">Add a new activity</label>
+      <div class="bar-entry-row">
+        <input id="pie-new-category-${widgetId}" type="text" placeholder="Example: Studying" />
+        <button class="btn-secondary" type="submit">Add</button>
+      </div>
+    </form>
+  `;
+}
+
 async function updateRadarScore(widgetId, index, change) {
   try {
     const data = await fetchJson(`/widgets/${widgetId}/radar/update-score`, {
@@ -236,6 +397,71 @@ async function submitBarEntry(event, widgetId) {
   }
 }
 
+async function submitPieEntry(event, widgetId) {
+  event.preventDefault();
+
+  const widget = dashboardWidgets.find((item) => item.id === widgetId);
+  if (!widget) {
+    return;
+  }
+
+  const unitMode = widget.config.unit_mode || "numbers";
+  const hours = widget.config.categories.map((_, index) => {
+    const slider = document.getElementById(`pie-input-${widgetId}-${index}`);
+    return Number.parseFloat(hoursFromSliderValue(slider.value, unitMode).toFixed(2));
+  });
+
+  const total = hours.reduce((sum, value) => sum + value, 0);
+  if (total > 24) {
+    alert("Tracked time cannot exceed 24 hours.");
+    return;
+  }
+
+  try {
+    const data = await fetchJson(`/widgets/${widgetId}/pie/entry`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hours }),
+    });
+
+    Object.assign(widget, data.widget);
+    renderPieWidget(`widget-graph-${widgetId}`, widget);
+    renderPieActions(widget.id, widget);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function submitPieCategory(event, widgetId) {
+  event.preventDefault();
+
+  const input = document.getElementById(`pie-new-category-${widgetId}`);
+  const category = input.value.trim();
+  if (!category) {
+    alert("Please enter a new activity name.");
+    return;
+  }
+
+  const widget = dashboardWidgets.find((item) => item.id === widgetId);
+  if (!widget) {
+    return;
+  }
+
+  try {
+    const data = await fetchJson(`/widgets/${widgetId}/pie/category`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category }),
+    });
+
+    Object.assign(widget, data.widget);
+    renderPieWidget(`widget-graph-${widgetId}`, widget);
+    renderPieActions(widget.id, widget);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 async function removeWidget(widgetId) {
   const widget = dashboardWidgets.find((item) => item.id === widgetId);
   if (!widget) {
@@ -288,6 +514,11 @@ function renderWidgetTypeStep() {
         <span>Bar chart</span>
         <small>Track one daily habit or metric.</small>
       </label>
+      <label class="type-option">
+        <input type="radio" name="widgetType" value="pie" />
+        <span>Pie chart</span>
+        <small>Track this day's time distribution.</small>
+      </label>
     </div>
   `;
 }
@@ -310,6 +541,37 @@ function renderWidgetConfigStep(widgetType) {
         placeholder="Enter at least three domain names, separated by commas. Example: Sport, Focus, Learning"
       ></textarea>
       <p class="field-help">Enter the number and name of at least three domains.</p>
+    `;
+    return;
+  }
+
+  if (widgetType === "pie") {
+    widgetFormContentEl.innerHTML = `
+      <label class="field-label" for="widget-title">Graphic title</label>
+      <input id="widget-title" name="title" type="text" placeholder="Optional title for this pie chart" />
+
+      <label class="field-label" for="pie-categories">Activities</label>
+      <textarea
+        id="pie-categories"
+        name="categories"
+        rows="5"
+        placeholder="Enter activities separated by commas. Example: Work, Transport, Sleep, Cooking"
+      ></textarea>
+      <p class="field-help">You will still be able to add new activities later from the widget.</p>
+
+      <label class="field-label">Input style</label>
+      <div class="type-grid compact-grid">
+        <label class="type-option">
+          <input type="radio" name="pieUnitMode" value="numbers" checked />
+          <span>Numbers</span>
+          <small>Use decimal values such as 7.5 hours.</small>
+        </label>
+        <label class="type-option">
+          <input type="radio" name="pieUnitMode" value="minutes" />
+          <span>Minutes</span>
+          <small>Use sliders with 5-minute steps.</small>
+        </label>
+      </div>
     `;
     return;
   }
@@ -351,6 +613,10 @@ widgetFormEl.addEventListener("submit", async (event) => {
   } else if (widgetType === "bar") {
     payload.metric_name = document.getElementById("metric-name").value.trim();
     payload.unit = document.getElementById("metric-unit").value.trim();
+  } else if (widgetType === "pie") {
+    const rawCategories = document.getElementById("pie-categories").value;
+    payload.categories = rawCategories.split(",").map((category) => category.trim());
+    payload.unit_mode = widgetFormEl.querySelector('input[name="pieUnitMode"]:checked')?.value || "numbers";
   }
 
   try {
