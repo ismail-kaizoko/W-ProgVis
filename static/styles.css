@@ -276,38 +276,6 @@ textarea {
   color: rgba(255, 247, 237, 0.72);
 }
 
-.pie-slider-group {
-  display: grid;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #f3efe2;
-}
-
-.pie-slider-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.pie-slider-header .field-label {
-  margin: 0;
-}
-
-.pie-slider-value {
-  min-width: 72px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  color: var(--green-dark);
-  font-weight: 700;
-}
-
-.pie-slider {
-  width: 100%;
-  accent-color: var(--green);
-}
-
 .pie-save-button {
   margin-top: 8px;
 }

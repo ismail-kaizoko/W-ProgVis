@@ -190,41 +190,44 @@ function formatPieValue(hours, unitMode) {
   return `${Number.parseFloat(hours || 0).toFixed(2)}`;
 }
 
-function sliderValueFromHours(hours, unitMode) {
+function formatPieInputValue(hours, unitMode) {
   if (unitMode === "minutes") {
-    return Math.round((hours || 0) * 60);
+    const totalMinutes = Math.round((hours || 0) * 60);
+    const displayHours = Math.floor(totalMinutes / 60);
+    const displayMinutes = totalMinutes % 60;
+    return totalMinutes === 0 ? "" : `${displayHours.toString().padStart(2, "0")}:${displayMinutes.toString().padStart(2, "0")}`;
   }
 
-  return Number.parseFloat(hours || 0).toFixed(2);
+  return hours ? `${hours}` : "";
 }
 
-function hoursFromSliderValue(value, unitMode) {
-  const numericValue = Number.parseFloat(value || "0");
-  if (Number.isNaN(numericValue)) {
+function parsePieInputValue(rawValue, unitMode) {
+  const value = (rawValue || "").trim();
+  if (!value) {
     return 0;
   }
 
-  return unitMode === "minutes" ? numericValue / 60 : numericValue;
-}
-
-function updatePieSliderValue(widgetId, index) {
-  const widget = dashboardWidgets.find((item) => item.id === widgetId);
-  if (!widget) {
-    return;
+  if (unitMode !== "minutes") {
+    return Number.parseFloat(value);
   }
 
-  const slider = document.getElementById(`pie-input-${widgetId}-${index}`);
-  const valueLabel = document.getElementById(`pie-value-${widgetId}-${index}`);
-  const hours = hoursFromSliderValue(slider.value, widget.config.unit_mode);
+  const match = value.match(/^(\d{1,2}):([0-5]\d)$/);
+  if (!match) {
+    return Number.NaN;
+  }
 
-  valueLabel.textContent = formatPieValue(hours, widget.config.unit_mode);
+  const hours = Number.parseInt(match[1], 10);
+  const minutes = Number.parseInt(match[2], 10);
+
+  return hours + minutes / 60;
 }
 
 function renderPieWidget(graphId, widget) {
   const plot = widget.plot || { labels: [], values: [], colors: [], has_entries: false };
+  const graphEl = document.getElementById(graphId);
 
   if (!plot.has_entries) {
-    const graphEl = document.getElementById(graphId);
+    Plotly.purge(graphEl);
     graphEl.innerHTML = `
       <div class="pie-empty-state">
         <strong>No entries for today yet</strong>
@@ -233,6 +236,9 @@ function renderPieWidget(graphId, widget) {
     `;
     return;
   }
+
+  Plotly.purge(graphEl);
+  graphEl.innerHTML = "";
 
   const categoryCount = widget.config.categories.length;
   const pull = plot.labels.map((_, index) => (index === categoryCount ? 0.06 : 0));
@@ -285,12 +291,11 @@ function renderPieActions(widgetId, widget) {
   const todayEntries = widget.today_entries || [];
   const trackedLabel = formatPieValue(widget.plot.total_tracked || 0, unitMode);
   const wastedLabel = formatPieValue(widget.plot.wasted_hours || 0, unitMode);
-  const sliderStep = unitMode === "minutes" ? 5 : 0.25;
-  const sliderMax = unitMode === "minutes" ? 24 * 60 : 24;
   const helperText =
     unitMode === "minutes"
-      ? "Move each slider in 5-minute steps. The total day cannot exceed 24 hours."
-      : "Move each slider to assign today's values. The total day cannot exceed 24 hours.";
+      ? "Enter today's durations in hours and minutes. The built-in field cursor moves by 5 minutes."
+      : "Enter today's values. The total day cannot exceed 24 hours.";
+  const inputPlaceholder = unitMode === "minutes" ? "Example: 1:30" : "Enter today's value";
 
   actionsEl.innerHTML = `
     <div class="daily-note">Each day starts blank. Enter this day's activities to build the pie chart.</div>
@@ -303,25 +308,33 @@ function renderPieActions(widgetId, widget) {
       <p class="field-help">${helperText}</p>
       ${categories
         .map((category, index) => {
-          const hours = todayEntries[index] ?? 0;
-          const sliderValue = sliderValueFromHours(hours, unitMode);
-          return `
-            <div class="pie-slider-group">
-              <div class="pie-slider-header">
-                <label class="field-label" for="pie-input-${widgetId}-${index}">${category}</label>
-                <span class="pie-slider-value" id="pie-value-${widgetId}-${index}">${formatPieValue(hours, unitMode)}</span>
-              </div>
+          const hours = todayEntries[index] ?? "";
+          if (unitMode === "minutes") {
+            return `
+              <label class="field-label" for="pie-input-${widgetId}-${index}">${category}</label>
               <input
                 id="pie-input-${widgetId}-${index}"
-                class="pie-slider"
-                type="range"
-                min="0"
-                max="${sliderMax}"
-                step="${sliderStep}"
-                value="${sliderValue}"
-                oninput="updatePieSliderValue(${widgetId}, ${index})"
+                type="time"
+                min="00:00"
+                max="23:55"
+                step="300"
+                placeholder="${inputPlaceholder}"
+                value="${formatPieInputValue(hours, unitMode)}"
               />
-            </div>
+            `;
+          }
+
+          return `
+            <label class="field-label" for="pie-input-${widgetId}-${index}">${category}</label>
+            <input
+              id="pie-input-${widgetId}-${index}"
+              type="number"
+              min="0"
+              max="24"
+              step="0.25"
+              placeholder="${inputPlaceholder}"
+              value="${formatPieInputValue(hours, unitMode)}"
+            />
           `;
         })
         .join("")}
@@ -407,9 +420,14 @@ async function submitPieEntry(event, widgetId) {
 
   const unitMode = widget.config.unit_mode || "numbers";
   const hours = widget.config.categories.map((_, index) => {
-    const slider = document.getElementById(`pie-input-${widgetId}-${index}`);
-    return Number.parseFloat(hoursFromSliderValue(slider.value, unitMode).toFixed(2));
+    const input = document.getElementById(`pie-input-${widgetId}-${index}`);
+    return parsePieInputValue(input.value, unitMode);
   });
+
+  if (hours.some((value) => Number.isNaN(value) || value < 0)) {
+    alert("Please enter valid values.");
+    return;
+  }
 
   const total = hours.reduce((sum, value) => sum + value, 0);
   if (total > 24) {
@@ -418,15 +436,13 @@ async function submitPieEntry(event, widgetId) {
   }
 
   try {
-    const data = await fetchJson(`/widgets/${widgetId}/pie/entry`, {
+    await fetchJson(`/widgets/${widgetId}/pie/entry`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ hours }),
     });
 
-    Object.assign(widget, data.widget);
-    renderPieWidget(`widget-graph-${widgetId}`, widget);
-    renderPieActions(widget.id, widget);
+    await loadDashboard();
   } catch (error) {
     alert(error.message);
   }
@@ -448,15 +464,13 @@ async function submitPieCategory(event, widgetId) {
   }
 
   try {
-    const data = await fetchJson(`/widgets/${widgetId}/pie/category`, {
+    await fetchJson(`/widgets/${widgetId}/pie/category`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ category }),
     });
 
-    Object.assign(widget, data.widget);
-    renderPieWidget(`widget-graph-${widgetId}`, widget);
-    renderPieActions(widget.id, widget);
+    await loadDashboard();
   } catch (error) {
     alert(error.message);
   }
